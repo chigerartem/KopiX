@@ -1,0 +1,240 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum SubscriberStatus {
+  active
+  paused
+  inactive
+  suspended
+}
+
+enum CopyMode {
+  fixed
+  percentage
+}
+
+enum SubscriptionStatus {
+  active
+  expired
+  cancelled
+}
+
+enum SignalSide {
+  buy
+  sell
+}
+
+enum SignalType {
+  open
+  close
+  increase
+  decrease
+}
+
+enum TradeStatus {
+  pending
+  filled
+  partial
+  failed
+  skipped
+}
+
+enum PositionSide {
+  long
+  short
+}
+
+enum PositionStatus {
+  open
+  closed
+}
+
+// ---------------------------------------------------------------------------
+// Plans
+// ---------------------------------------------------------------------------
+
+model Plan {
+  id           String   @id @default(uuid())
+  name         String   @db.VarChar(100)
+  price        Decimal  @db.Decimal(10, 2)
+  currency     String   @db.VarChar(10)
+  durationDays Int
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now()) @db.Timestamptz(6)
+
+  subscriptions Subscription[]
+
+  @@map("plans")
+}
+
+// ---------------------------------------------------------------------------
+// Subscribers
+// ---------------------------------------------------------------------------
+
+model Subscriber {
+  id                  String           @id @default(uuid())
+  telegramId          BigInt           @unique
+  telegramUsername    String?          @db.VarChar(100)
+  apiKeyEncrypted     String?          @db.Text
+  apiSecretEncrypted  String?          @db.Text
+  copyMode            CopyMode?
+  fixedAmount         Decimal?         @db.Decimal(12, 4)
+  percentage          Decimal?         @db.Decimal(5, 2)
+  maxPositionUsdt     Decimal?         @db.Decimal(12, 4)
+  status              SubscriberStatus @default(inactive)
+  createdAt           DateTime         @default(now()) @db.Timestamptz(6)
+  updatedAt           DateTime         @updatedAt @db.Timestamptz(6)
+
+  subscriptions Subscription[]
+  copiedTrades  CopiedTrade[]
+  positions     Position[]
+  pnlSnapshots  PnlSnapshot[]
+
+  @@map("subscribers")
+}
+
+// ---------------------------------------------------------------------------
+// Subscriptions
+// ---------------------------------------------------------------------------
+
+model Subscription {
+  id                  String             @id @default(uuid())
+  subscriberId        String
+  planId              String
+  status              SubscriptionStatus @default(active)
+  startedAt           DateTime           @db.Timestamptz(6)
+  expiresAt           DateTime           @db.Timestamptz(6)
+  cryptobotInvoiceId  String?            @unique @db.VarChar(100)
+  amountPaid          Decimal?           @db.Decimal(10, 2)
+  currency            String?            @db.VarChar(10)
+  createdAt           DateTime           @default(now()) @db.Timestamptz(6)
+
+  subscriber Subscriber @relation(fields: [subscriberId], references: [id])
+  plan       Plan       @relation(fields: [planId], references: [id])
+
+  @@index([subscriberId, status, expiresAt])
+  @@map("subscriptions")
+}
+
+// ---------------------------------------------------------------------------
+// Master account (single row per deployment)
+// ---------------------------------------------------------------------------
+
+model MasterAccount {
+  id                 String   @id @default(uuid())
+  exchange           String   @db.VarChar(20)
+  apiKeyEncrypted    String   @db.Text
+  apiSecretEncrypted String   @db.Text
+  isActive           Boolean  @default(true)
+  connectedAt        DateTime @db.Timestamptz(6)
+  lastHeartbeat      DateTime? @db.Timestamptz(6)
+
+  @@map("master_accounts")
+}
+
+// ---------------------------------------------------------------------------
+// Trade signals (raw, emitted by engine)
+// ---------------------------------------------------------------------------
+
+model TradeSignal {
+  id               String     @id @default(uuid())
+  symbol           String     @db.VarChar(30)
+  side             SignalSide
+  signalType       SignalType
+  masterPrice      Decimal    @db.Decimal(20, 8)
+  masterSize       Decimal    @db.Decimal(20, 8)
+  masterPositionId String     @db.VarChar(100)
+  rawPayload       Json
+  createdAt        DateTime   @default(now()) @db.Timestamptz(6)
+
+  copiedTrades CopiedTrade[]
+  positions    Position[]
+
+  @@map("trade_signals")
+}
+
+// ---------------------------------------------------------------------------
+// Copied trades (one row per subscriber per signal)
+// ---------------------------------------------------------------------------
+
+model CopiedTrade {
+  id               String      @id @default(uuid())
+  signalId         String
+  subscriberId     String
+  symbol           String      @db.VarChar(30)
+  side             SignalSide
+  tradeType        SignalType
+  orderedSize      Decimal     @db.Decimal(20, 8)
+  executedSize     Decimal?    @db.Decimal(20, 8)
+  executedPrice    Decimal?    @db.Decimal(20, 8)
+  masterPrice      Decimal     @db.Decimal(20, 8)
+  slippagePct      Decimal?    @db.Decimal(10, 6)
+  exchangeOrderId  String?     @db.VarChar(100)
+  status           TradeStatus @default(pending)
+  failureReason    String?     @db.Text
+  executedAt       DateTime?   @db.Timestamptz(6)
+  createdAt        DateTime    @default(now()) @db.Timestamptz(6)
+
+  signal     TradeSignal @relation(fields: [signalId], references: [id])
+  subscriber Subscriber  @relation(fields: [subscriberId], references: [id])
+
+  @@unique([signalId, subscriberId])
+  @@index([subscriberId, createdAt(sort: Desc)])
+  @@map("copied_trades")
+}
+
+// ---------------------------------------------------------------------------
+// Positions
+// ---------------------------------------------------------------------------
+
+model Position {
+  id            String         @id @default(uuid())
+  subscriberId  String
+  openSignalId  String
+  symbol        String         @db.VarChar(30)
+  side          PositionSide
+  entryPrice    Decimal        @db.Decimal(20, 8)
+  exitPrice     Decimal?       @db.Decimal(20, 8)
+  size          Decimal        @db.Decimal(20, 8)
+  realizedPnl   Decimal?       @db.Decimal(20, 8)
+  status        PositionStatus @default(open)
+  openedAt      DateTime       @db.Timestamptz(6)
+  closedAt      DateTime?      @db.Timestamptz(6)
+
+  subscriber Subscriber  @relation(fields: [subscriberId], references: [id])
+  openSignal TradeSignal @relation(fields: [openSignalId], references: [id])
+
+  @@index([subscriberId, status])
+  @@index([openSignalId, status])
+  @@map("positions")
+}
+
+// ---------------------------------------------------------------------------
+// Daily P&L snapshots
+// ---------------------------------------------------------------------------
+
+model PnlSnapshot {
+  id            String   @id @default(uuid())
+  subscriberId  String
+  date          DateTime @db.Date
+  realizedPnl   Decimal  @db.Decimal(20, 8)
+  totalTrades   Int
+  winningTrades Int
+  createdAt     DateTime @default(now()) @db.Timestamptz(6)
+
+  subscriber Subscriber @relation(fields: [subscriberId], references: [id])
+
+  @@unique([subscriberId, date])
+  @@map("pnl_snapshots")
+}
