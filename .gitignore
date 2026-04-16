@@ -137,3 +137,12 @@ dist
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# Turborepo
+.turbo/
+
+# Prisma generated client
+packages/db/src/generated/
+
+# Docker volumes
+infra/compose/volumes/
