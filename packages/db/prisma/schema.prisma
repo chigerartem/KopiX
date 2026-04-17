@@ -1,6 +1,10 @@
 generator client {
   provider = "prisma-client-js"
-  output   = "../src/generated/client"
+  // Output OUTSIDE src/ so the path `../generated/client/index.js` resolves
+  // identically from src/*.ts (dev via tsx) and dist/*.js (after tsc build).
+  // Keeping it inside src/ would require a post-build copy step, because tsc
+  // does not copy non-.ts artefacts into dist/.
+  output   = "../generated/client"
 }
 
 datasource db {

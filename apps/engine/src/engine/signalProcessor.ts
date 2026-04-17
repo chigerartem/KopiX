@@ -8,7 +8,7 @@
 
 import type { TradeSignal } from "@kopix/shared";
 import { SignalType } from "@kopix/shared";
-import { createPrismaClient, type Subscriber } from "@kopix/db";
+import { createPrismaClient, Prisma, type Subscriber } from "@kopix/db";
 import { executeForSubscriber } from "./subscriberExecutor.js";
 import { openPosition, closePosition } from "./positionTracker.js";
 import { Semaphore } from "./semaphore.js";
@@ -37,7 +37,7 @@ export async function processSignal(signal: TradeSignal): Promise<void> {
       masterPrice: signal.masterPrice,
       masterSize: signal.masterSize,
       masterPositionId: signal.masterPositionId,
-      rawPayload: signal as unknown as Record<string, unknown>,
+      rawPayload: signal as unknown as Prisma.InputJsonValue,
     },
   });
 

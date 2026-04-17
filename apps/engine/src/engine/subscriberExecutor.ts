@@ -148,7 +148,7 @@ export async function executeForSubscriber(
         data: {
           executedSize: result.executedAmount,
           executedPrice: result.executedPrice,
-          slippagePct: slippagePct ?? undefined,
+          slippagePct: slippagePct ?? null,
           exchangeOrderId: result.orderId,
           status: "filled",
           executedAt: new Date(),

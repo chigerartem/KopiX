@@ -145,7 +145,7 @@ vite.config.ts.timestamp-*
 .claude/settings.local.json
 
 # Prisma generated client
-packages/db/src/generated/
+packages/db/generated/
 
 # Docker volumes
 infra/compose/volumes/

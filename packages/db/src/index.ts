@@ -1,4 +1,4 @@
-export { PrismaClient, Prisma } from "./generated/client/index.js";
+export { PrismaClient, Prisma } from "../generated/client/index.js";
 export type {
   Plan,
   Subscriber,
@@ -8,6 +8,6 @@ export type {
   CopiedTrade,
   Position,
   PnlSnapshot,
-} from "./generated/client/index.js";
+} from "../generated/client/index.js";
 
 export { createPrismaClient } from "./client.js";
