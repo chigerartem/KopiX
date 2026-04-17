@@ -141,6 +141,9 @@ vite.config.ts.timestamp-*
 # Turborepo
 .turbo/
 
+# Claude Code local settings (machine-specific)
+.claude/settings.local.json
+
 # Prisma generated client
 packages/db/src/generated/
 
