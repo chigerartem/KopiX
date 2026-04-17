@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cd 'D:/PROJECT/KopiX' && CHANGES=$(git status --porcelain 2>/dev/null); if [ -n \"$CHANGES\" ]; then printf '\\nБЛОКИРОВКА: Незакоммиченные изменения. Выполни git commit перед завершением шага.\\n%s\\n' \"$CHANGES\"; exit 2; fi"
+            "command": "cd 'D:/PROJECT/KopiX' && CHANGES=$(git status --porcelain 2>/dev/null); if [ -n \"$CHANGES\" ]; then printf 'БЛОКИРОВКА: Незакоммиченные изменения — сделай git commit перед завершением шага.\\n%s\\n' \"$CHANGES\" >&2; exit 2; fi"
           }
         ]
       }
