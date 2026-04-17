@@ -35,12 +35,42 @@ export async function validateCredentials(credentials: Credentials): Promise<Val
     const usdtFree = balanceRaw["USDT"]?.free ?? 0;
     futuresBalance = typeof usdtFree === "number" ? usdtFree : parseFloat(String(usdtFree));
 
-    // BingX returns permissions in account info — we infer from balance fetch success
-    // A trade-only key can fetch balance. Withdraw is a separate permission not visible
-    // via balance endpoint. We rely on the key setup instructions to ensure no withdraw.
-    // Mark trade permission as present since balance fetch succeeded.
     hasTradePermission = true;
-    hasWithdrawPermission = false; // Cannot detect from ccxt; operator must configure correctly
+
+    // Actively probe whether the API key has withdraw permission by calling
+    // a withdraw-scoped endpoint with deliberately invalid parameters.
+    //   - PermissionDenied → key lacks withdraw permission (good, trade-only)
+    //   - Any other error (including invalid-param / unsupported-endpoint /
+    //     exchange error) → key HAS the permission, reject for safety.
+    // Fail-closed: on ambiguity we treat the key as unsafe.
+    try {
+      // privateGetCapitalConfigGetall is a withdraw/capital-movement endpoint.
+      // A trade-only key returns PermissionDenied; a withdraw-capable key
+      // returns data. If the method itself is unavailable in ccxt, we fall
+      // back to assuming the permission is present (fail-closed).
+      const ex = exchange as unknown as {
+        privateGetCapitalConfigGetall?: () => Promise<unknown>;
+      };
+      if (typeof ex.privateGetCapitalConfigGetall === "function") {
+        await ex.privateGetCapitalConfigGetall();
+        // Call succeeded → key can access withdraw-scoped endpoints.
+        hasWithdrawPermission = true;
+      } else {
+        // Endpoint unknown to this ccxt version — fail closed.
+        hasWithdrawPermission = true;
+      }
+    } catch (probeErr: unknown) {
+      if (probeErr instanceof PermissionDenied) {
+        hasWithdrawPermission = false;
+      } else if (probeErr instanceof AuthenticationError) {
+        // Should not happen — balance fetch already succeeded. Fail closed.
+        hasWithdrawPermission = true;
+      } else {
+        // Any other error (including bad-param) — fail closed: assume
+        // permission may be present. Operator must use a trade-only key.
+        hasWithdrawPermission = true;
+      }
+    }
 
     return {
       valid: true,
