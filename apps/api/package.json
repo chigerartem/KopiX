@@ -1,0 +1,29 @@
+{
+  "name": "@kopix/api",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@fastify/cors": "^10.0.2",
+    "@fastify/rate-limit": "^10.2.2",
+    "@kopix/crypto": "*",
+    "@kopix/db": "*",
+    "@kopix/exchange": "*",
+    "@kopix/shared": "*",
+    "fastify": "^5.3.3",
+    "ioredis": "^5.6.1",
+    "pino": "^9.6.0",
+    "zod": "^3.24.3"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.3"
+  }
+}
