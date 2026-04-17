@@ -15,7 +15,6 @@ import { Semaphore } from "./semaphore.js";
 import { logger } from "../logger.js";
 
 const CONCURRENCY = 20;
-const semaphore = new Semaphore(CONCURRENCY);
 const prisma = createPrismaClient();
 
 /**
@@ -63,6 +62,11 @@ export async function processSignal(signal: TradeSignal): Promise<void> {
   }
 
   log.info({ event: "processor.subscribers_found", count: subscribers.length });
+
+  // Fresh semaphore per signal — prevents the pool from leaking slots between
+  // signals if a prior processing call was cancelled mid-flight, and keeps
+  // resource usage bounded even if the consumer becomes concurrent later.
+  const semaphore = new Semaphore(CONCURRENCY);
 
   // Run all subscribers concurrently (max CONCURRENCY at a time)
   const results = await Promise.allSettled(
