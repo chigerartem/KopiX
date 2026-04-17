@@ -22,15 +22,17 @@ export async function buildServer() {
     credentials: true,
   });
 
-  // Rate limiting — Redis-backed, keyed by subscriberId when authenticated,
-  // IP address otherwise (architecture §25).
+  // Rate limiting — Redis-backed (architecture §25).
+  // Registered WITHOUT `global: true` so it does not run before authentication.
+  // Each route applies `app.rateLimit(...)` inside its own preHandler chain
+  // AFTER requireTmaAuth, guaranteeing `request.subscriberId` is populated
+  // before keyGenerator reads it. Anonymous requests fall back to IP.
   await app.register(rateLimit, {
-    global: true,
-    max: 60,              // 60 requests per window
-    timeWindow: 60_000,   // 1 minute
+    global: false,
+    max: 60,
+    timeWindow: 60_000,
     redis: getRedisClient(),
     keyGenerator: (request) => {
-      // Use subscriber ID for authenticated requests, otherwise IP
       const sub = (request as { subscriberId?: string }).subscriberId;
       return sub ?? (request.ip || "unknown");
     },

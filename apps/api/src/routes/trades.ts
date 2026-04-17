@@ -20,7 +20,10 @@ export async function tradeRoutes(app: FastifyInstance): Promise<void> {
   // GET /api/trades
   app.get(
     "/api/trades",
-    { preHandler: requireTmaAuth },
+    {
+      preHandler: requireTmaAuth,
+      config: { rateLimit: { max: 60, timeWindow: 60_000 } },
+    },
     async (request, reply) => {
       const qr = TradesQuery.safeParse(request.query);
       if (!qr.success) {
@@ -65,7 +68,10 @@ export async function tradeRoutes(app: FastifyInstance): Promise<void> {
   // GET /api/positions
   app.get(
     "/api/positions",
-    { preHandler: requireTmaAuth },
+    {
+      preHandler: requireTmaAuth,
+      config: { rateLimit: { max: 60, timeWindow: 60_000 } },
+    },
     async (request, reply) => {
       const positions = await prisma.position.findMany({
         where: { subscriberId: request.subscriberId, status: "open" },
@@ -88,7 +94,10 @@ export async function tradeRoutes(app: FastifyInstance): Promise<void> {
   // GET /api/stats
   app.get(
     "/api/stats",
-    { preHandler: requireTmaAuth },
+    {
+      preHandler: requireTmaAuth,
+      config: { rateLimit: { max: 60, timeWindow: 60_000 } },
+    },
     async (request, reply) => {
       const [tradeStats, pnlAgg] = await Promise.all([
         prisma.copiedTrade.groupBy({

@@ -23,7 +23,10 @@ export async function subscriberRoutes(app: FastifyInstance): Promise<void> {
   // GET /api/subscribers/me
   app.get(
     "/api/subscribers/me",
-    { preHandler: requireTmaAuth },
+    {
+      preHandler: requireTmaAuth,
+      config: { rateLimit: { max: 60, timeWindow: 60_000 } },
+    },
     async (request, reply) => {
       const subscriber = await prisma.subscriber.findUniqueOrThrow({
         where: { id: request.subscriberId },
@@ -67,7 +70,10 @@ export async function subscriberRoutes(app: FastifyInstance): Promise<void> {
   // PATCH /api/subscribers/me
   app.patch(
     "/api/subscribers/me",
-    { preHandler: requireTmaAuth },
+    {
+      preHandler: requireTmaAuth,
+      config: { rateLimit: { max: 60, timeWindow: 60_000 } },
+    },
     async (request, reply) => {
       const parseResult = PatchBody.safeParse(request.body);
       if (!parseResult.success) {

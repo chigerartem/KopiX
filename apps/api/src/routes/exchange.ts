@@ -26,7 +26,10 @@ const ConnectBody = z.object({
 export async function exchangeRoutes(app: FastifyInstance): Promise<void> {
   app.post(
     "/api/exchange/validate",
-    { preHandler: requireTmaAuth },
+    {
+      preHandler: requireTmaAuth,
+      config: { rateLimit: { max: 60, timeWindow: 60_000 } },
+    },
     async (request, reply) => {
       const parseResult = ConnectBody.safeParse(request.body);
       if (!parseResult.success) {
