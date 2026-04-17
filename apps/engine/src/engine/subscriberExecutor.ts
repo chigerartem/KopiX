@@ -21,6 +21,7 @@ import { placeMarketOrder } from "@kopix/exchange";
 import { decrypt } from "@kopix/crypto";
 import { createPrismaClient } from "@kopix/db";
 import { calculateOrderSize } from "./calculateOrderSize.js";
+import { getRedisClient } from "../redis/redisClient.js";
 import { logger } from "../logger.js";
 import type { Subscriber } from "@kopix/db";
 import type { CopyMode } from "@kopix/shared";
@@ -58,12 +59,24 @@ export async function executeForSubscriber(
   const log = logger.child({ signalId: signal.id, subscriberId: subscriber.id });
 
   // 1. Idempotency check
+  // Skip only trades that already reached a terminal state on the exchange:
+  //   - filled (exchangeOrderId present)
+  //   - skipped (business decision, e.g. no credentials / below min size)
+  // Pending trades without exchangeOrderId are left alone and retried below,
+  // because a crash between DB upsert and exchange call must not lose the trade.
   const existing = await prisma.copiedTrade.findUnique({
     where: { signalId_subscriberId: { signalId: signal.id, subscriberId: subscriber.id } },
   });
-  if (existing && existing.status !== "failed" && existing.status !== "skipped") {
-    log.debug({ event: "executor.idempotent_skip" }, "Trade already exists — skipping");
-    return;
+  if (existing) {
+    if (existing.status === "filled" && existing.exchangeOrderId) {
+      log.debug({ event: "executor.idempotent_skip" }, "Trade already filled — skipping");
+      return;
+    }
+    if (existing.status === "skipped") {
+      log.debug({ event: "executor.already_skipped" }, "Trade was skipped — not retrying");
+      return;
+    }
+    // pending / failed → fall through and (re)try
   }
 
   // 2. Decrypt credentials
@@ -151,6 +164,34 @@ export async function executeForSubscriber(
         },
         "Order filled",
       );
+
+      // Publish to the subscriber's SSE channel so the Mini App gets a live update.
+      // Architecture §14.3 — channel "trades:{subscriberId}".
+      try {
+        const redis = getRedisClient();
+        await redis.publish(
+          `trades:${subscriber.id}`,
+          JSON.stringify({
+            type: "trade_executed",
+            data: {
+              id: tradeRecord.id,
+              signalId: signal.id,
+              symbol: signal.symbol,
+              side: signal.side,
+              tradeType: signalTypeToTradeType(signal.signalType),
+              executedSize: result.executedAmount,
+              executedPrice: result.executedPrice,
+              masterPrice: signal.masterPrice,
+              slippagePct,
+              orderId: result.orderId,
+              executedAt: new Date().toISOString(),
+            },
+          }),
+        );
+      } catch (pubErr: unknown) {
+        log.warn({ event: "executor.publish_failed", err: pubErr }, "Failed to publish trade event");
+      }
+
       return;
     } catch (err: unknown) {
       lastError = err;
