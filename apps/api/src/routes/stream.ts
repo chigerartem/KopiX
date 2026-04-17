@@ -48,15 +48,22 @@ export async function streamRoutes(app: FastifyInstance): Promise<void> {
         }
       }, 25_000);
 
+      let cleanedUp = false;
       const cleanup = (): void => {
+        if (cleanedUp) return;
+        cleanedUp = true;
         clearInterval(heartbeat);
         sub.unsubscribe(channel).catch(() => undefined);
         sub.quit().catch(() => undefined);
+        if (!reply.raw.writableEnded) {
+          try { reply.raw.end(); } catch { /* ignore */ }
+        }
         logger.info({ event: "sse.disconnected", subscriberId }, "SSE client disconnected");
       };
 
       request.raw.on("close", cleanup);
       request.raw.on("aborted", cleanup);
+      request.raw.on("error", cleanup);
 
       await sub.subscribe(channel);
       logger.info({ event: "sse.connected", subscriberId, channel }, "SSE client connected");
