@@ -4,6 +4,9 @@
  *
  * Docs: POST /openApi/user/auth/userDataStream
  *       PUT  /openApi/user/auth/userDataStream  (extend — call every 30 min)
+ *
+ * IMPORTANT: BingX requires the API key in the `X-BX-APIKEY` HTTP header,
+ * NOT in the query string. Only `timestamp` + `signature` go in the URL.
  */
 
 import { createHmac } from "node:crypto";
@@ -16,16 +19,18 @@ function sign(queryString: string, secret: string): string {
   return createHmac("sha256", secret).update(queryString).digest("hex");
 }
 
-function buildSignedUrl(path: string, apiKey: string, secret: string): string {
-  const ts = Date.now();
-  const params = `timestamp=${ts}`;
+function buildSignedUrl(path: string, params: string, secret: string): string {
   const signature = sign(params, secret);
-  return `${BINGX_REST}${path}?${params}&signature=${signature}&X-BX-APIKEY=${apiKey}`;
+  return `${BINGX_REST}${path}?${params}&signature=${signature}`;
 }
 
 export async function createListenKey(apiKey: string, secret: string): Promise<string> {
-  const url = buildSignedUrl(LISTEN_KEY_PATH, apiKey, secret);
-  const res = await fetch(url, { method: "POST" });
+  const params = `timestamp=${Date.now()}`;
+  const url = buildSignedUrl(LISTEN_KEY_PATH, params, secret);
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "X-BX-APIKEY": apiKey },
+  });
   if (!res.ok) throw new Error(`createListenKey HTTP ${res.status}: ${await res.text()}`);
   const body = (await res.json()) as { listenKey?: string; data?: { listenKey?: string } };
   const key = body.listenKey ?? body.data?.listenKey;
@@ -35,11 +40,12 @@ export async function createListenKey(apiKey: string, secret: string): Promise<s
 }
 
 export async function extendListenKey(listenKey: string, apiKey: string, secret: string): Promise<void> {
-  const ts = Date.now();
-  const params = `listenKey=${listenKey}&timestamp=${ts}`;
-  const signature = sign(params, secret);
-  const url = `${BINGX_REST}${LISTEN_KEY_PATH}?${params}&signature=${signature}&X-BX-APIKEY=${apiKey}`;
-  const res = await fetch(url, { method: "PUT" });
+  const params = `listenKey=${listenKey}&timestamp=${Date.now()}`;
+  const url = buildSignedUrl(LISTEN_KEY_PATH, params, secret);
+  const res = await fetch(url, {
+    method: "PUT",
+    headers: { "X-BX-APIKEY": apiKey },
+  });
   if (!res.ok) {
     logger.warn({ event: "listen_key.extend_failed", status: res.status }, "Failed to extend listen key");
     return;
