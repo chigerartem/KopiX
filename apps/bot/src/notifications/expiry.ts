@@ -4,6 +4,8 @@ import { prisma } from "../prisma.js";
 import { redis } from "../redis.js";
 
 const INTERVAL_MS = 15 * 60 * 1000;
+// How far back to scan for expired subscriptions. With Redis dedup, re-runs are no-ops.
+const LOOKBACK_MS = 30 * 24 * 60 * 60 * 1000;
 
 export function startExpiryNotifications(bot: Bot): void {
   setTimeout(() => void runExpiryCheck(bot), 10_000);
@@ -14,38 +16,13 @@ async function runExpiryCheck(bot: Bot): Promise<void> {
   const now = new Date();
   logger.info({ event: "bot.expiry_check.start" }, "Running subscription expiry check");
   try {
-    await expireAndNotify(bot, now);
     await notify24h(bot, now);
     await notify1h(bot, now);
+    await notifyExpired(bot, now);
   } catch (err) {
     logger.error(
       { event: "bot.expiry_check.error", err: (err as Error).message },
       "Expiry check failed",
-    );
-  }
-}
-
-async function expireAndNotify(bot: Bot, now: Date): Promise<void> {
-  const expired = await prisma.subscription.findMany({
-    where: { status: "active", expiresAt: { lt: now } },
-    include: { subscriber: true, plan: true },
-  });
-
-  for (const sub of expired) {
-    await prisma.$transaction([
-      prisma.subscription.update({ where: { id: sub.id }, data: { status: "expired" } }),
-      prisma.subscriber.update({ where: { id: sub.subscriberId }, data: { status: "inactive" } }),
-    ]);
-
-    logger.info(
-      { event: "bot.expiry_check.expired", subscriptionId: sub.id, subscriberId: sub.subscriberId },
-      "Subscription expired",
-    );
-
-    await safeSend(
-      bot,
-      Number(sub.subscriber.telegramId),
-      "⏰ Ваша подписка KopiX истекла. Копирование сделок остановлено.\n\nОтправьте /subscribe, чтобы продлить.",
     );
   }
 }
@@ -93,6 +70,30 @@ async function notify1h(bot: Bot, now: Date): Promise<void> {
     );
 
     if (sent) await redis.set(key, "1", "EX", 2 * 3600);
+  }
+}
+
+// Sends "expired" notification once per subscription (Redis dedup).
+// DB lifecycle (marking status='expired') is handled by the api-server expiry job.
+async function notifyExpired(bot: Bot, now: Date): Promise<void> {
+  const lookbackStart = new Date(now.getTime() - LOOKBACK_MS);
+
+  const expired = await prisma.subscription.findMany({
+    where: { expiresAt: { lt: now, gt: lookbackStart } },
+    include: { subscriber: true },
+  });
+
+  for (const sub of expired) {
+    const key = `notif:${sub.id}:expired`;
+    if (await redis.exists(key)) continue;
+
+    const sent = await safeSend(
+      bot,
+      Number(sub.subscriber.telegramId),
+      "⏰ Ваша подписка KopiX истекла. Копирование сделок остановлено.\n\nОтправьте /subscribe, чтобы продлить.",
+    );
+
+    if (sent) await redis.set(key, "1", "EX", 7 * 24 * 3600);
   }
 }
 

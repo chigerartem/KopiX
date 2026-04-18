@@ -5,8 +5,10 @@ import { getRedisClient } from "./plugins/redis.js";
 import { healthRoutes } from "./routes/health.js";
 import { exchangeRoutes } from "./routes/exchange.js";
 import { subscriberRoutes } from "./routes/subscribers.js";
+import { subscriptionRoutes } from "./routes/subscriptions.js";
 import { tradeRoutes } from "./routes/trades.js";
 import { streamRoutes } from "./routes/stream.js";
+import { webhookRoutes } from "./routes/webhooks.js";
 
 export async function buildServer() {
   const app = Fastify({
@@ -46,8 +48,10 @@ export async function buildServer() {
   await app.register(healthRoutes);
   await app.register(exchangeRoutes);
   await app.register(subscriberRoutes);
+  await app.register(subscriptionRoutes);
   await app.register(tradeRoutes);
   await app.register(streamRoutes);
+  await app.register(webhookRoutes);
 
   return app;
 }
