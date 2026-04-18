@@ -1,6 +1,10 @@
 /**
  * Trade Engine entry point.
  *
+ * Master account credentials come from env vars:
+ *   MASTER_API_KEY    — BingX API key of the master trader
+ *   MASTER_API_SECRET — BingX API secret of the master trader
+ *
  * Start order:
  *   1. Connect Redis (implicit via first use)
  *   2. Start signal consumer (reads trade-signals stream)
@@ -14,28 +18,21 @@ import { publishSignal } from "./redis/streamPublisher.js";
 import { startSignalConsumer } from "./consumer/signalConsumer.js";
 import { processSignal } from "./engine/signalProcessor.js";
 import { logger } from "./logger.js";
-import { createPrismaClient } from "@kopix/db";
-import { decrypt } from "@kopix/crypto";
 
 async function main(): Promise<void> {
   logger.info({ event: "engine.starting" }, "Trade engine starting");
 
-  const encKey = process.env["APP_ENCRYPTION_KEY"];
-  if (!encKey) throw new Error("APP_ENCRYPTION_KEY env var is required");
+  // Master credentials come directly from env — no DB lookup, no encryption layer.
+  // Subscriber credentials are encrypted in the DB because they are dynamic and
+  // user-supplied; the master account is a single static operator secret.
+  const masterApiKey = process.env["MASTER_API_KEY"];
+  const masterSecret = process.env["MASTER_API_SECRET"];
 
-  // Load master account credentials from DB
-  const prisma = createPrismaClient();
-  const master = await prisma.masterAccount.findFirst({ where: { isActive: true } });
-  if (!master) throw new Error("No active master account found in database");
-
-  if (master.apiKeyEncrypted === "PLACEHOLDER") {
+  if (!masterApiKey || !masterSecret) {
     throw new Error(
-      "Master account credentials are placeholders — configure real encrypted keys first",
+      "MASTER_API_KEY and MASTER_API_SECRET env vars are required",
     );
   }
-
-  const masterApiKey = decrypt(master.apiKeyEncrypted, encKey);
-  const masterSecret = decrypt(master.apiSecretEncrypted, encKey);
 
   // Start signal consumer (processes signals from Redis stream)
   const stopConsumer = await startSignalConsumer(async (signal) => {
@@ -59,7 +56,6 @@ async function main(): Promise<void> {
     logger.info({ event: "engine.shutdown" }, "Shutting down trade engine");
     watcher.stop();
     stopConsumer();
-    prisma.$disconnect().catch(() => undefined);
     process.exit(0);
   };
 
