@@ -1,0 +1,25 @@
+{
+  "name": "@kopix/bot",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx watch --env-file-if-exists=../../.env src/index.ts",
+    "start": "node --env-file-if-exists=../../.env dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@kopix/db": "*",
+    "@kopix/shared": "*",
+    "fastify": "^5.3.3",
+    "grammy": "^1.30.0",
+    "ioredis": "^5.6.1",
+    "pino": "^9.6.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.3"
+  }
+}
