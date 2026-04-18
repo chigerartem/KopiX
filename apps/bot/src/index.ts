@@ -14,6 +14,7 @@
 import { createBot } from "./bot.js";
 import { buildServer } from "./server.js";
 import { logger } from "./logger.js";
+import { startExpiryNotifications } from "./notifications/expiry.js";
 
 async function main(): Promise<void> {
   const token = process.env["TELEGRAM_BOT_TOKEN"];
@@ -40,6 +41,8 @@ async function main(): Promise<void> {
     { event: "bot.server_started", port, host },
     `Bot webhook listening on ${host}:${port}/api/bot/webhook`,
   );
+
+  startExpiryNotifications(bot);
 
   const shutdown = async (): Promise<void> => {
     logger.info({ event: "bot.shutdown" }, "Shutting down bot");
