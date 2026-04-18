@@ -12,10 +12,8 @@
  */
 
 import type { CommandContext, Context } from "grammy";
-import { createPrismaClient } from "@kopix/db";
 import { logger } from "../logger.js";
-
-const prisma = createPrismaClient();
+import { prisma } from "../prisma.js";
 
 export async function handleStart(ctx: CommandContext<Context>): Promise<void> {
   const from = ctx.from;

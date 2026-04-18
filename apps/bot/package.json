@@ -12,7 +12,9 @@
     "lint": "eslint src"
   },
   "dependencies": {
+    "@kopix/crypto": "*",
     "@kopix/db": "*",
+    "@kopix/exchange": "*",
     "@kopix/shared": "*",
     "fastify": "^5.3.3",
     "grammy": "^1.30.0",
