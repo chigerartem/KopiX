@@ -14,7 +14,8 @@
     "format:check": "prettier --check \"**/*.{ts,tsx,js,json,md}\" --ignore-path .gitignore",
     "db:generate": "turbo db:generate",
     "db:migrate": "turbo db:migrate",
-    "db:seed": "turbo db:seed"
+    "db:seed": "turbo db:seed",
+    "seed:master": "node --env-file-if-exists=.env --import tsx/esm scripts/seed-master.ts"
   },
   "devDependencies": {
     "@types/node": "^25.6.0",
