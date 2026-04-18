@@ -7,12 +7,14 @@
  */
 
 import { Bot, GrammyError, HttpError } from "grammy";
+import { registerHandlers } from "./handlers/index.js";
 import { logger } from "./logger.js";
 
 export function createBot(token: string): Bot {
   const bot = new Bot(token);
 
-  // Basic request logging
+  // Basic request logging — MUST be registered before command handlers
+  // so it wraps them in grammY's linear middleware chain.
   bot.use(async (ctx, next) => {
     const start = Date.now();
     const from = ctx.from?.id;
@@ -31,6 +33,10 @@ export function createBot(token: string): Bot {
       );
     }
   });
+
+  // Commands — must be registered AFTER bot.use() so the logging
+  // middleware wraps them. grammY's middleware chain is strictly linear.
+  registerHandlers(bot);
 
   // Global error handler — grammY calls this when a handler throws
   bot.catch((err) => {
