@@ -17,6 +17,7 @@ const PatchBody = z.object({
   fixedAmount: z.number().positive().optional(),
   percentage: z.number().min(0.01).max(100).optional(),
   maxPositionUsdt: z.number().positive().nullable().optional(),
+  action: z.enum(["pause", "resume"]).optional(),
 });
 
 export async function subscriberRoutes(app: FastifyInstance): Promise<void> {
@@ -81,9 +82,54 @@ export async function subscriberRoutes(app: FastifyInstance): Promise<void> {
         return;
       }
 
-      const { copyMode, fixedAmount, percentage, maxPositionUsdt } = parseResult.data;
+      const { copyMode, fixedAmount, percentage, maxPositionUsdt, action } = parseResult.data;
 
-      // Validate: fixed mode needs fixedAmount, percentage mode needs percentage
+      // Handle pause / resume actions
+      if (action === "pause") {
+        const sub = await prisma.subscriber.findUniqueOrThrow({ where: { id: request.subscriberId } });
+        if (sub.status !== "active") {
+          await reply.status(400).send({ error: "Only active subscribers can be paused" });
+          return;
+        }
+        const updated = await prisma.subscriber.update({
+          where: { id: request.subscriberId },
+          data: { status: "paused" },
+        });
+        await reply.send({ status: updated.status });
+        return;
+      }
+
+      if (action === "resume") {
+        const sub = await prisma.subscriber.findUniqueOrThrow({
+          where: { id: request.subscriberId },
+          include: {
+            subscriptions: {
+              where: { status: "active", expiresAt: { gt: new Date() } },
+              take: 1,
+            },
+          },
+        });
+        if (sub.status !== "paused") {
+          await reply.status(400).send({ error: "Only paused subscribers can be resumed" });
+          return;
+        }
+        if (!sub.apiKeyEncrypted || !sub.apiSecretEncrypted) {
+          await reply.status(400).send({ error: "No BingX API keys connected" });
+          return;
+        }
+        if (sub.subscriptions.length === 0) {
+          await reply.status(400).send({ error: "No active subscription" });
+          return;
+        }
+        const updated = await prisma.subscriber.update({
+          where: { id: request.subscriberId },
+          data: { status: "active" },
+        });
+        await reply.send({ status: updated.status });
+        return;
+      }
+
+      // Settings update (copyMode, amounts)
       if (copyMode === CopyMode.Fixed && fixedAmount == null) {
         await reply.status(400).send({ error: "fixedAmount is required for fixed copy mode" });
         return;

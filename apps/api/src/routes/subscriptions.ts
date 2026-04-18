@@ -12,6 +12,22 @@ const CreateInvoiceBody = z.object({
 });
 
 export async function subscriptionRoutes(app: FastifyInstance): Promise<void> {
+  app.get(
+    "/api/plans",
+    {
+      preHandler: requireTmaAuth,
+      config: { rateLimit: { max: 60, timeWindow: 60_000 } },
+    },
+    async (_request, reply) => {
+      const plans = await prisma.plan.findMany({
+        where: { isActive: true },
+        orderBy: { price: "asc" },
+        select: { id: true, name: true, price: true, currency: true, durationDays: true },
+      });
+      await reply.send(plans.map((p) => ({ ...p, price: Number(p.price) })));
+    },
+  );
+
   app.post(
     "/api/subscriptions/create-invoice",
     {
