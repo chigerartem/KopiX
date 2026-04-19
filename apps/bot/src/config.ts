@@ -11,7 +11,18 @@ function required(name: string): string {
   return v;
 }
 
+// Telegram caches WebApp content by URL. Appending ?v=<commit-sha> forces a
+// fresh fetch on every deploy so clients can't keep serving the old build.
+function buildMiniAppUrl(): string {
+  const base = process.env["MINIAPP_URL"] ?? "";
+  if (!base) return "";
+  const version = process.env["COMMIT_SHA"];
+  if (!version) return base;
+  const sep = base.includes("?") ? "&" : "?";
+  return `${base}${sep}v=${encodeURIComponent(version)}`;
+}
+
 export const config = {
   encryptionKey: required("APP_ENCRYPTION_KEY"),
-  miniAppUrl: process.env["MINIAPP_URL"] ?? "",
+  miniAppUrl: buildMiniAppUrl(),
 };

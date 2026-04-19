@@ -18,7 +18,9 @@
     "db:generate": "turbo db:generate",
     "db:migrate": "turbo db:migrate",
     "db:seed": "turbo db:seed",
-    "seed:master": "node --env-file-if-exists=.env --import tsx/esm scripts/seed-master.ts"
+    "seed:master": "node --env-file-if-exists=.env --import tsx/esm scripts/seed-master.ts",
+    "deploy": "bash scripts/deploy.sh",
+    "webhook:register": "node --env-file=.env --import tsx/esm scripts/register-webhook.ts"
   },
   "devDependencies": {
     "@types/node": "^25.6.0",

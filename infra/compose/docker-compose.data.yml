@@ -1,0 +1,50 @@
+# Data-layer only: Postgres + Redis.
+#
+# Daily app deploys do NOT touch this file. Apps run natively on the host via pm2
+# (see /ecosystem.config.cjs). This compose is started once at VPS setup and left
+# running. Restart only for version upgrades or config changes.
+#
+# Start:   docker compose -f infra/compose/docker-compose.data.yml up -d
+# Status:  docker compose -f infra/compose/docker-compose.data.yml ps
+# Stop:    docker compose -f infra/compose/docker-compose.data.yml down
+#
+# Ports are bound to 127.0.0.1 so the services are reachable only from the host
+# (same machine pm2 runs on) — never exposed publicly.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: kopix-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: kopix
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d kopix"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: kopix-redis
+    restart: unless-stopped
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru --appendonly yes
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  pgdata:
+  redisdata:
