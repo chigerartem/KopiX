@@ -1,0 +1,62 @@
+.page {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  min-height: 100vh;
+  width: 100%;
+  background: var(--ds-surface-page);
+  color: var(--ds-text-primary);
+}
+
+.inner {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  /* Same gap: logo block → balance → channel → trades */
+  gap: var(--dash-stack-gap);
+  width: 100%;
+  max-width: 100%;
+  margin: 0 auto;
+  padding-top: calc(max(var(--safe-top), var(--ds-space-md)) + 36px);
+  padding-left: max(var(--safe-left), var(--ds-space-md));
+  padding-right: max(var(--safe-right), var(--ds-space-md));
+  padding-bottom: calc(
+    var(--bottom-nav-h) + max(var(--safe-bottom), var(--ds-space-md)) + 32px
+  );
+  min-height: 0;
+}
+
+.stack {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--dash-stack-gap);
+  min-height: 0;
+}
+
+.stack > section {
+  margin-bottom: 0;
+}
+
+.toast {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--bottom-nav-h) + max(var(--safe-bottom), 12px) + 12px);
+  z-index: 60;
+  width: calc(100% - 32px);
+  max-width: min(320px, calc(var(--app-shell-max-width) - 32px));
+  margin-left: auto;
+  margin-right: auto;
+  padding: var(--ds-space-sm) var(--ds-space-md);
+  border-radius: var(--ds-radius-card);
+  background: var(--ds-surface-card);
+  border: 1px solid var(--ds-border-default);
+  box-shadow: var(--ds-shadow-card);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--dash-text-primary);
+  text-align: center;
+  pointer-events: none;
+}

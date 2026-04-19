@@ -1,185 +1,160 @@
-import { useCallback, useEffect, useState } from "react";
+/**
+ * Main home screen: header, balance, subscription card, trades carousel, bottom tabs.
+ * Side menu navigates to API Keys; other actions use placeholder toasts until APIs exist.
+ */
+import { useCallback, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { createApi, SubscriberProfile, Stats, TradeItem } from "../api/client";
-import { useTma } from "../hooks/useTma";
-import { useSse } from "../hooks/useSse";
-import { Spinner } from "../components/Spinner";
-import { ErrorMessage } from "../components/ErrorMessage";
-
-function daysRemaining(expiresAt: string): number {
-  return Math.max(
-    0,
-    Math.ceil((new Date(expiresAt).getTime() - Date.now()) / 86400000)
-  );
-}
-
-function statusBadge(status: SubscriberProfile["status"]) {
-  const map: Record<SubscriberProfile["status"], string> = {
-    active: "🟢 Активен",
-    paused: "⏸ Пауза",
-    inactive: "⚪ Неактивен",
-    suspended: "🔴 Заблокирован",
-  };
-  return map[status];
-}
+import { useAppState } from "@/contexts/AppStateContext";
+import { useActivePageRefresh } from "@/hooks/useActivePageRefresh";
+import { BalanceCard, type BalanceCardStats } from "@/components/dashboard/BalanceCard";
+import { BottomTabBar, type TabId } from "@/components/dashboard/BottomTabBar";
+import { SubscriptionCard } from "@/components/dashboard/SubscriptionCard";
+import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
+import { DashboardSideMenu } from "@/components/dashboard/DashboardSideMenu";
+import { OpenTradesSection } from "@/components/dashboard/OpenTradesSection";
+import {
+  getBalance,
+  getSwapPnlHistory,
+  getSwapPositions,
+} from "@/services/api";
+import type { OpenTradePosition } from "@/types/trade";
+import styles from "./DashboardPage.module.css";
 
 export function DashboardPage() {
-  const { initData } = useTma();
-  const api = createApi(initData);
   const navigate = useNavigate();
+  const {
+    setSubscriptionStatus,
+    setSubscriptionValidUntil,
+    dashboardBalanceStats,
+    dashboardOpenTrades,
+    setDashboardBalanceStats,
+    setDashboardOpenTrades,
+    setTradesOpen,
+    refreshSubscriptionStatus,
+  } = useAppState();
+  const [tab, setTab] = useState<TabId>("home");
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const [profile, setProfile] = useState<SubscriberProfile | null>(null);
-  const [stats, setStats] = useState<Stats | null>(null);
-  const [trades, setTrades] = useState<TradeItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  async function load() {
-    try {
-      const [p, s, t] = await Promise.all([
-        api.getProfile(),
-        api.getStats(),
-        api.getTrades({ limit: 5, offset: 0 }),
-      ]);
-      setProfile(p);
-      setStats(s);
-      setTrades(t.items);
-    } catch {
-      setError("Не удалось загрузить данные");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    load();
+  const notify = useCallback((message: string) => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToast(message);
+    toastTimer.current = setTimeout(() => {
+      setToast(null);
+      toastTimer.current = null;
+    }, 2400);
   }, []);
 
-  const handleSseEvent = useCallback(
-    (event: { type: string; data: Record<string, unknown> }) => {
-      if (event.type === "trade_executed") {
-        api.getStats().then(setStats).catch(() => null);
+  const refreshDashboardData = useCallback(async () => {
+    const [balance, pnlHistory, positions, subStatus] = await Promise.all([
+      getBalance(),
+      getSwapPnlHistory(),
+      getSwapPositions(),
+      refreshSubscriptionStatus(),
+    ]);
+
+    const now = Date.now();
+    const oneDayMs = 24 * 60 * 60 * 1000;
+    const todayPnl = pnlHistory
+      .filter((p) => p.asset === "USDT" && now - p.timeMs <= oneDayMs)
+      .reduce((sum, p) => sum + p.income, 0);
+    const pnlTodayPct = balance > 0 ? (todayPnl / balance) * 100 : 0;
+
+    setDashboardBalanceStats({
+      totalBalanceUsdt: balance,
+      pnlTodayUsdt: todayPnl,
+      pnlTodayPct,
+    });
+    setDashboardOpenTrades(positions);
+    setTradesOpen(positions);
+    setSubscriptionStatus(subStatus.state);
+    setSubscriptionValidUntil(subStatus.activeTo);
+  }, [
+    setDashboardBalanceStats,
+    setDashboardOpenTrades,
+    setTradesOpen,
+    setSubscriptionStatus,
+    setSubscriptionValidUntil,
+    refreshSubscriptionStatus,
+  ]);
+
+  useActivePageRefresh({
+    refresh: async () => {
+      try {
+        await refreshDashboardData();
+      } catch (err) {
+        console.error("[Dashboard] dashboard data load failed", err);
       }
     },
-    []
-  );
+    intervalMs: 8000,
+  });
 
-  useSse(handleSseEvent);
-
-  if (loading) return <Spinner />;
-  if (error) return <ErrorMessage message={error} />;
-  if (!profile || !stats) return null;
+  const handlePayPending = useCallback(() => {
+    void refreshSubscriptionStatus({ force: true })
+      .then((status) => {
+        setSubscriptionStatus(status.state);
+        setSubscriptionValidUntil(status.activeTo);
+        if (status.state === "active") {
+          notify("Subscription is active");
+          return;
+        }
+        if (status.payUrl) {
+          window.location.href = status.payUrl;
+          return;
+        }
+        notify("Payment link is unavailable");
+      })
+      .catch((err) => {
+        console.error("[Dashboard] payment status sync failed", err);
+        notify("Unable to check payment status");
+      });
+  }, [notify, refreshSubscriptionStatus, setSubscriptionStatus, setSubscriptionValidUntil]);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-      <div className="card">
-        <div style={{ fontSize: "1.1rem", fontWeight: 600, marginBottom: "0.5rem" }}>
-          {statusBadge(profile.status)}
-        </div>
-        {profile.subscription ? (
-          <div style={{ color: "var(--hint)", fontSize: "0.85rem" }}>
-            {profile.subscription.planName} · ещё{" "}
-            {daysRemaining(profile.subscription.expiresAt)} дн.
-          </div>
-        ) : (
-          <div style={{ color: "var(--hint)", fontSize: "0.85rem" }}>Подписка не активна</div>
-        )}
-      </div>
+    <div className={styles.page}>
+      <div className={styles.inner}>
+        <DashboardHeader onMenuClick={() => setMenuOpen(true)} />
 
-      <div className="card">
-        <div style={{ color: "var(--hint)", fontSize: "0.75rem", marginBottom: "0.25rem" }}>
-          Режим копирования
-        </div>
-        <div style={{ fontWeight: 600 }}>
-          {profile.copyMode === "fixed" && profile.fixedAmount !== null
-            ? `Фиксированный: ${profile.fixedAmount} USDT`
-            : profile.copyMode === "percentage" && profile.percentage !== null
-            ? `${profile.percentage}% от баланса`
-            : "Не настроен"}
-        </div>
-      </div>
+        <div className={styles.stack}>
+          <BalanceCard stats={dashboardBalanceStats as Partial<BalanceCardStats>} />
 
-      <div className="card" style={{ display: "flex", gap: "1rem" }}>
-        <div style={{ flex: 1, textAlign: "center" }}>
-          <div
-            style={{
-              fontSize: "1.1rem",
-              fontWeight: 700,
-              color: stats.realizedPnl >= 0 ? "var(--success)" : "var(--destructive)",
+          <SubscriptionCard onPay={handlePayPending} />
+
+          <OpenTradesSection
+            trades={dashboardOpenTrades as OpenTradePosition[]}
+            onManageClick={() => {
+              setTab("trades");
+              navigate("/trades");
             }}
-          >
-            {stats.realizedPnl >= 0 ? "+" : ""}
-            {stats.realizedPnl.toFixed(2)} $
-          </div>
-          <div style={{ color: "var(--hint)", fontSize: "0.7rem" }}>P&L</div>
-        </div>
-        <div style={{ flex: 1, textAlign: "center" }}>
-          <div style={{ fontSize: "1.1rem", fontWeight: 700 }}>
-            {stats.winRate !== null ? `${(stats.winRate * 100).toFixed(0)}%` : "—"}
-          </div>
-          <div style={{ color: "var(--hint)", fontSize: "0.7rem" }}>Win rate</div>
-        </div>
-        <div style={{ flex: 1, textAlign: "center" }}>
-          <div style={{ fontSize: "1.1rem", fontWeight: 700 }}>{stats.totalTrades}</div>
-          <div style={{ color: "var(--hint)", fontSize: "0.7rem" }}>Сделок</div>
+          />
         </div>
       </div>
 
-      {!profile.hasExchangeConnected && (
-        <button className="btn" onClick={() => navigate("/connect")}>
-          Подключить BingX →
-        </button>
-      )}
+      <DashboardSideMenu
+        open={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        onApiKeysClick={() => navigate("/api-keys")}
+        onCopySettingsClick={() => navigate("/copy-settings")}
+      />
 
-      {!profile.subscription && (
-        <button className="btn" onClick={() => navigate("/subscribe")}>
-          Оформить подписку →
-        </button>
-      )}
-
-      {trades.length > 0 && (
-        <div className="card">
-          <div style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Последние сделки</div>
-          {trades.map((t) => (
-            <div
-              key={t.id}
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                padding: "0.4rem 0",
-                borderBottom: "1px solid rgba(255,255,255,0.06)",
-              }}
-            >
-              <span style={{ fontWeight: 600 }}>{t.symbol}</span>
-              <span
-                style={{
-                  color: t.side === "buy" ? "var(--success)" : "var(--destructive)",
-                  fontSize: "0.85rem",
-                }}
-              >
-                {t.side}
-              </span>
-              <span style={{ color: "var(--hint)", fontSize: "0.85rem" }}>
-                {t.orderedSize}
-              </span>
-              <span
-                style={{
-                  fontSize: "0.75rem",
-                  color:
-                    t.status === "filled"
-                      ? "var(--success)"
-                      : t.status === "failed"
-                      ? "var(--destructive)"
-                      : "var(--hint)",
-                }}
-              >
-                {t.status}
-              </span>
-            </div>
-          ))}
+      {toast ? (
+        <div className={styles.toast} role="status">
+          {toast}
         </div>
-      )}
+      ) : null}
+
+      <BottomTabBar
+        active={tab}
+        onChange={(id) => {
+          setTab(id);
+          if (id === "trades") {
+            setTab("trades");
+            navigate("/trades");
+            return;
+          }
+        }}
+      />
     </div>
   );
 }

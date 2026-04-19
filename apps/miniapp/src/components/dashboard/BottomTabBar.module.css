@@ -1,0 +1,76 @@
+/* Full-width strip + flex center avoids translateX(-50%) reflow when routes swap */
+.barOuter {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 50;
+  display: flex;
+  justify-content: center;
+  padding: 0 10px;
+  pointer-events: none;
+  box-sizing: border-box;
+}
+
+.bar {
+  pointer-events: auto;
+  width: 100%;
+  max-width: var(--app-shell-max-width);
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: var(--ds-space-xs);
+  min-height: var(--bottom-nav-h);
+  padding: 10px 8px max(var(--safe-bottom), 12px);
+  border-radius: 18px 18px 0 0;
+  background: var(--ds-tab-bar-bg);
+  backdrop-filter: blur(var(--ds-tab-bar-blur)) saturate(1.15);
+  -webkit-backdrop-filter: blur(var(--ds-tab-bar-blur)) saturate(1.15);
+  border: 1px solid var(--ds-tab-bar-border);
+  border-bottom: none;
+  box-shadow: var(--ds-tab-bar-shadow);
+}
+
+.tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 8px 4px;
+  border: none;
+  border-radius: var(--ds-tab-radius);
+  background: transparent;
+  color: var(--ds-text-secondary);
+  cursor: pointer;
+  transition: background 0.25s ease, color 0.25s ease, transform 0.15s ease;
+}
+
+.tabActive {
+  color: var(--accent-blue);
+  background: var(--ds-tab-active-bg);
+}
+
+.tab:active {
+  transform: scale(0.96);
+}
+
+.icon {
+  display: block;
+  flex-shrink: 0;
+  transition: stroke-width 0.2s ease, opacity 0.2s ease;
+}
+
+.tab:not(.tabActive) .icon {
+  opacity: 0.72;
+}
+
+.label {
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  line-height: 1.2;
+  white-space: nowrap;
+}

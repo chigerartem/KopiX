@@ -1,0 +1,102 @@
+.card {
+  margin-bottom: 0;
+  padding: var(--ds-space-md);
+  border-radius: var(--ds-radius-card);
+  background: linear-gradient(
+    158deg,
+    rgba(255, 255, 255, 0.06) 0%,
+    var(--ds-surface-card) 42%,
+    #18181c 100%
+  );
+  border: 1px solid var(--ds-border-default);
+  box-shadow: var(--ds-shadow-card);
+  transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
+}
+
+@media (hover: hover) {
+  .card:hover {
+    border-color: rgba(255, 255, 255, 0.1);
+    box-shadow: var(--ds-shadow-card-hover);
+    transform: translateY(-1px);
+  }
+}
+
+.card:active {
+  transform: translateY(0);
+  transition-duration: 0.1s;
+}
+
+.labelRow {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-xs);
+  margin: 0 0 10px;
+}
+
+.labelIcon {
+  flex-shrink: 0;
+  color: var(--accent-blue);
+  opacity: 0.85;
+}
+
+.label {
+  margin: 0;
+  font-size: var(--ds-font-label);
+  font-weight: var(--ds-weight-label);
+  line-height: 1.25;
+  letter-spacing: var(--ds-tracking-label);
+  text-transform: uppercase;
+  color: var(--ds-text-secondary);
+  opacity: 0.94;
+}
+
+.balance {
+  margin: 0;
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1.12;
+  letter-spacing: -0.035em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ds-text-primary);
+}
+
+.unit {
+  font-size: 1.0625rem;
+  font-weight: 600;
+  color: var(--ds-text-secondary);
+}
+
+.pnl {
+  margin: var(--ds-space-sm) 0 0;
+  padding: var(--ds-space-sm) var(--ds-space-sm);
+  border-radius: var(--ds-btn-radius);
+  border: 1px solid transparent;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1.45;
+  font-variant-numeric: tabular-nums;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.pnlPct {
+  font-weight: 600;
+  opacity: 0.95;
+}
+
+.pnlUp {
+  color: var(--profit);
+  background: rgba(14, 203, 129, 0.09);
+  border-color: rgba(14, 203, 129, 0.18);
+}
+
+.pnlDown {
+  color: #f6465d;
+  background: rgba(246, 70, 93, 0.08);
+  border-color: rgba(246, 70, 93, 0.16);
+}
+
+.pnlFlat {
+  color: var(--ds-text-secondary);
+  background: rgba(255, 255, 255, 0.03);
+  border-color: var(--ds-divider);
+}

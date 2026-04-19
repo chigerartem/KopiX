@@ -1,24 +1,57 @@
+/**
+ * Root application shell and route table.
+ *
+ * - Wraps routes in ApiKeysProvider + CopySettingsProvider (copy setup UI state).
+ * - Renders the centered "phone" frame (see App.module.css) for a consistent Mini App feel.
+ *
+ * Future: lazy-load heavy routes, add auth guard routes, or wrap with error boundaries.
+ */
+import { useEffect } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
-import { Layout } from "./components/Layout";
-import { DashboardPage } from "./pages/DashboardPage";
-import { ConnectPage } from "./pages/ConnectPage";
-import { SubscribePage } from "./pages/SubscribePage";
-import { TradesPage } from "./pages/TradesPage";
-import { SettingsPage } from "./pages/SettingsPage";
-import { PaymentSuccessPage } from "./pages/PaymentSuccessPage";
+import { initTelegramWebApp } from "@/services/telegram";
+import { ApiKeysProvider } from "@/contexts/ApiKeysContext";
+import { CopySettingsProvider } from "@/contexts/CopySettingsContext";
+import { ApiKeysAddPage } from "@/pages/ApiKeysAddPage";
+import { ApiKeysPage } from "@/pages/ApiKeysPage";
+import { SplashPage } from "@/pages/SplashPage";
+import { DashboardScreen } from "@/screens/Dashboard";
+import { TradesScreen } from "@/screens/Trades";
+import { CopySettingsScreen } from "@/screens/CopySettings";
+import { SubscriptionScreen } from "@/screens/Subscription";
+import styles from "./App.module.css";
 
-export function App() {
+export default function App() {
+  useEffect(() => {
+    initTelegramWebApp();
+  }, []);
+
   return (
-    <Routes>
-      <Route element={<Layout />}>
-        <Route path="/" element={<DashboardPage />} />
-        <Route path="/connect" element={<ConnectPage />} />
-        <Route path="/subscribe" element={<SubscribePage />} />
-        <Route path="/trades" element={<TradesPage />} />
-        <Route path="/settings" element={<SettingsPage />} />
-      </Route>
-      <Route path="/payment-success" element={<PaymentSuccessPage />} />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+    <div className={styles.viewport}>
+      <div className={styles.frame}>
+        <ApiKeysProvider>
+          <CopySettingsProvider>
+            {/*
+            Route map — keep in sync with docs/architecture.md
+            ApiKeysAddPage handles both /add and /:keyId/edit via useParams
+          */}
+            <Routes>
+              <Route path="/" element={<SplashPage />} />
+              <Route path="/dashboard" element={<DashboardScreen />} />
+              <Route path="/subscription/setup" element={<SubscriptionScreen />} />
+              <Route path="/copy-settings" element={<CopySettingsScreen />} />
+              <Route path="/trades" element={<TradesScreen />} />
+              <Route path="/api-keys" element={<ApiKeysPage />} />
+              <Route path="/api-keys/add" element={<ApiKeysAddPage />} />
+              <Route path="/api-keys/:keyId/edit" element={<ApiKeysAddPage />} />
+              <Route
+                path="/api-keys/connect"
+                element={<Navigate to="/api-keys/add" replace />}
+              />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </CopySettingsProvider>
+        </ApiKeysProvider>
+      </div>
+    </div>
   );
 }

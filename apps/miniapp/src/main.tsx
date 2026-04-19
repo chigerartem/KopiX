@@ -1,19 +1,22 @@
+/**
+ * Entry point: mounts React, enables React Router, and wraps the tree in AppStateProvider.
+ *
+ * AppStateProvider — placeholder global state (subscription / API key flags) for future backend.
+ * ApiKeysProvider lives inside App.tsx so it can wrap route content only.
+ */
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
-import "./index.css";
-import { App } from "./App";
+import { AppStateProvider } from "@/contexts/AppStateContext";
+import App from "@/App";
+import "@/styles/global.css";
 
-window.Telegram?.WebApp.ready();
-window.Telegram?.WebApp.expand();
-
-const root = document.getElementById("root");
-if (!root) throw new Error("No #root element");
-
-createRoot(root).render(
+createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <BrowserRouter>
-      <App />
+      <AppStateProvider>
+        <App />
+      </AppStateProvider>
     </BrowserRouter>
-  </StrictMode>
+  </StrictMode>,
 );

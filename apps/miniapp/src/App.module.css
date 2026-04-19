@@ -1,0 +1,20 @@
+/* Letterboxing outside the phone-width column on wide viewports */
+.viewport {
+  min-height: 100dvh;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  background: var(--bg-base);
+}
+
+.frame {
+  position: relative;
+  width: 100%;
+  max-width: var(--app-shell-max-width);
+  min-height: 100dvh;
+  flex: 0 1 auto;
+  background: var(--dash-page-bg);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06);
+  overflow-x: clip;
+}

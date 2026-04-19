@@ -1,0 +1,304 @@
+/* min-width:0 lets the carousel shrink inside flex column ancestors so overflow-x scroll works */
+.section {
+  width: 100%;
+  min-width: 0;
+  margin-bottom: 0;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-space-md);
+  margin-bottom: var(--dash-section-heading-gap);
+}
+
+.title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-size: var(--ds-font-section);
+  font-weight: var(--ds-weight-section);
+  letter-spacing: var(--ds-tracking-section);
+  line-height: var(--ds-line-height-section);
+  color: var(--ds-text-primary);
+}
+
+.titleIcon {
+  flex-shrink: 0;
+  color: var(--accent-blue);
+  opacity: 0.88;
+}
+
+.manage {
+  padding: 4px 0;
+  border: none;
+  background: none;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--dash-text-secondary);
+  cursor: pointer;
+}
+
+.manage:hover {
+  color: var(--accent-blue);
+}
+
+.carouselWrap {
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.emptyCenter {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+}
+
+.emptyCardWrap {
+  width: min(100%, 360px);
+}
+
+/* Grid + peek: each slide slightly narrower than viewport + gap so next card shows at edge */
+.carousel {
+  --carousel-peek: 36px;
+  --carousel-gap: var(--ds-space-sm);
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: calc(100% - var(--carousel-peek));
+  gap: var(--carousel-gap);
+  align-items: stretch;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  scroll-padding: 0;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  outline: none;
+}
+
+.carousel::-webkit-scrollbar {
+  display: none;
+}
+
+/* Fills grid cell; snap aligns each card start with visible gap to the next */
+.slideCard {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  padding: var(--ds-space-md);
+  border-radius: var(--ds-radius-card);
+  background: linear-gradient(
+    160deg,
+    rgba(255, 255, 255, 0.045) 0%,
+    var(--ds-surface-card) 40%,
+    #18181c 100%
+  );
+  border: 1px solid var(--ds-border-default);
+  box-shadow: var(--ds-shadow-card);
+  transition: border-color 0.22s ease, box-shadow 0.22s ease;
+}
+
+@media (hover: hover) {
+  .slideCard:hover {
+    border-color: var(--ds-border-accent);
+    box-shadow: var(--ds-shadow-card-hover);
+  }
+}
+
+.slideCardPlaceholder {
+  background: linear-gradient(
+    160deg,
+    rgba(255, 255, 255, 0.03) 0%,
+    rgba(28, 28, 30, 0.84) 40%,
+    rgba(22, 22, 24, 0.9) 100%
+  );
+  border-color: rgba(255, 255, 255, 0.07);
+}
+
+.placeholderText {
+  color: rgba(154, 154, 163, 0.9) !important;
+}
+
+.slideCard:active {
+  transition-duration: 0.1s;
+}
+
+.rowTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-space-md);
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--ds-divider);
+}
+
+.pair {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 1.0625rem;
+  font-weight: 700;
+  letter-spacing: var(--ds-tracking-section);
+  font-variant-numeric: tabular-nums;
+  color: var(--ds-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.side {
+  flex: 0 0 auto;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.long {
+  color: var(--profit);
+}
+
+.short {
+  color: #f6465d;
+}
+
+.rowMid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-space-sm);
+  padding: 14px 0;
+  border-bottom: 1px solid var(--ds-divider);
+}
+
+.kv {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: var(--ds-space-md);
+  min-height: 22px;
+}
+
+.k {
+  font-size: var(--ds-font-body);
+  font-weight: var(--ds-font-body-weight);
+  color: var(--ds-text-secondary);
+}
+
+.v {
+  justify-self: end;
+  text-align: right;
+  font-size: 0.875rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--ds-text-primary);
+}
+
+.rowBot {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  column-gap: 20px;
+  align-items: start;
+  padding-top: 14px;
+  margin-top: 0;
+  border-top: none;
+}
+
+.marginBlock {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+  padding-right: 16px;
+  border-right: 1px solid var(--ds-divider);
+}
+
+.marginLabel {
+  font-size: var(--ds-font-body);
+  font-weight: var(--ds-font-body-weight);
+  color: var(--ds-text-secondary);
+}
+
+.marginValue {
+  font-size: 0.875rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--ds-text-primary);
+}
+
+.pnlBlock {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  min-width: 0;
+  text-align: right;
+}
+
+.pnlLabel {
+  font-size: var(--ds-font-body);
+  font-weight: var(--ds-font-body-weight);
+  color: var(--ds-text-secondary);
+}
+
+.pnlLine {
+  margin: 0;
+  width: 100%;
+  text-align: right;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  line-height: 1.35;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pnlUp {
+  color: var(--profit);
+}
+
+.pnlDown {
+  color: #f6465d;
+}
+
+.pnlFlat {
+  color: var(--ds-text-secondary);
+}
+
+.indicators {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  padding-top: 12px;
+  pointer-events: none;
+}
+
+.indicator {
+  display: block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(142, 142, 147, 0.32);
+  transition: transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.indicatorActive {
+  background: var(--accent-blue);
+  transform: scale(1.15);
+  box-shadow: 0 0 10px rgba(77, 143, 255, 0.32);
+}
