@@ -1,4 +1,10 @@
 {$APP_DOMAIN} {
+    # Telegram bot webhook — must route to bot:3001 (NOT the API).
+    # Must appear before the generic /api/* handler so Caddy matches it first.
+    handle /api/bot/webhook {
+        reverse_proxy bot:3001
+    }
+
     # API — no buffering on SSE endpoint
     @sse path /api/stream/*
     handle @sse {

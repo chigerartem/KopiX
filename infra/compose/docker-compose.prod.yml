@@ -85,8 +85,8 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@pgbouncer:5432/kopix
       REDIS_URL: redis://redis:6379
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
-      WEBHOOK_SECRET: ${WEBHOOK_SECRET}
-      WEBHOOK_URL: https://${APP_DOMAIN}/bot
+      BOT_WEBHOOK_SECRET: ${BOT_WEBHOOK_SECRET}
+      WEBHOOK_URL: https://${APP_DOMAIN}/api/bot/webhook
       MINIAPP_URL: https://${APP_DOMAIN}
       LOG_LEVEL: info
     depends_on:
