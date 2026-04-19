@@ -11,6 +11,7 @@
  *   before the grammY handler.
  */
 
+import { timingSafeEqual } from "node:crypto";
 import Fastify from "fastify";
 import type { Bot } from "grammy";
 import { webhookCallback } from "grammy";
@@ -38,7 +39,11 @@ export async function buildServer(opts: BuildServerOptions) {
 
   app.post("/api/bot/webhook", async (request, reply) => {
     const header = request.headers["x-telegram-bot-api-secret-token"];
-    if (header !== opts.secretToken) {
+    const expected = Buffer.from(opts.secretToken);
+    const received = Buffer.from(typeof header === "string" ? header : "");
+    const valid =
+      expected.length === received.length && timingSafeEqual(expected, received);
+    if (!valid) {
       request.log.warn(
         { event: "bot.webhook.bad_token", ip: request.ip },
         "Webhook request rejected — bad secret token",

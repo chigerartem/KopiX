@@ -137,11 +137,17 @@ export async function placeMarketOrder(
   );
 
   const execPrice =
-    typeof raw.average === "number"
+    typeof raw.average === "number" && raw.average > 0
       ? raw.average
-      : typeof raw.price === "number"
+      : typeof raw.price === "number" && raw.price > 0
         ? raw.price
-        : 0;
+        : null;
+
+  if (execPrice === null) {
+    throw new Error(
+      `BingX order ${String(raw.id)} returned no execution price — order may not be filled yet`,
+    );
+  }
 
   const execAmount =
     typeof raw.filled === "number" ? raw.filled : order.amount;
