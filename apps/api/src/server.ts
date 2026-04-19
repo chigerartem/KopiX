@@ -9,6 +9,7 @@ import { subscriptionRoutes } from "./routes/subscriptions.js";
 import { tradeRoutes } from "./routes/trades.js";
 import { streamRoutes } from "./routes/stream.js";
 import { webhookRoutes } from "./routes/webhooks.js";
+import { metricsRoutes } from "./routes/metrics.js";
 
 export async function buildServer() {
   const app = Fastify({
@@ -52,6 +53,7 @@ export async function buildServer() {
   await app.register(tradeRoutes);
   await app.register(streamRoutes);
   await app.register(webhookRoutes);
+  await app.register(metricsRoutes);
 
   return app;
 }

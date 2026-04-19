@@ -12,6 +12,7 @@
 import WebSocket from "ws";
 import { createListenKey, extendListenKey } from "./listenKey.js";
 import { logger } from "../logger.js";
+import { masterWatcherConnected, masterWatcherLastEventTs } from "../metrics.js";
 
 const WS_BASE = "wss://open-api-ws.bingx.com/market";
 const EXTEND_INTERVAL_MS = 30 * 60 * 1000; // 30 min
@@ -52,6 +53,7 @@ export function startMasterWatcher(
 
     ws.on("open", () => {
       logger.info({ event: "watcher.connected" }, "Master WebSocket connected");
+      masterWatcherConnected.set(1);
       backoffIndex = 0; // reset on successful connect
 
       heartbeatTimer = setInterval(() => {
@@ -62,6 +64,7 @@ export function startMasterWatcher(
     });
 
     ws.on("message", (raw: WebSocket.RawData) => {
+      masterWatcherLastEventTs.set(Date.now() / 1000);
       try {
         const text = raw.toString();
         const data = JSON.parse(text) as BingXRawEvent;
@@ -77,6 +80,7 @@ export function startMasterWatcher(
 
     ws.on("close", (code: number, reason: Buffer) => {
       clearHeartbeat();
+      masterWatcherConnected.set(0);
       if (stopped) return;
       logger.warn(
         { event: "watcher.disconnected", code, reason: reason.toString() },

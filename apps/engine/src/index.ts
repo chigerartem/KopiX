@@ -17,10 +17,14 @@ import { normalizeSignal } from "./normalizer/normalizeSignal.js";
 import { publishSignal } from "./redis/streamPublisher.js";
 import { startSignalConsumer } from "./consumer/signalConsumer.js";
 import { processSignal } from "./engine/signalProcessor.js";
+import { startMetricsServer, signalsPublishedTotal } from "./metrics.js";
 import { logger } from "./logger.js";
 
 async function main(): Promise<void> {
   logger.info({ event: "engine.starting" }, "Trade engine starting");
+
+  const metricsPort = Number(process.env["METRICS_PORT"] ?? 9090);
+  startMetricsServer(metricsPort);
 
   // Master credentials come directly from env — no DB lookup, no encryption layer.
   // Subscriber credentials are encrypted in the DB because they are dynamic and
@@ -44,9 +48,11 @@ async function main(): Promise<void> {
     const signal = normalizeSignal(rawEvent);
     if (!signal) return;
 
-    publishSignal(signal).catch((err: unknown) => {
-      logger.error({ event: "engine.publish_error", err }, "Failed to publish signal");
-    });
+    publishSignal(signal)
+      .then(() => signalsPublishedTotal.inc())
+      .catch((err: unknown) => {
+        logger.error({ event: "engine.publish_error", err }, "Failed to publish signal");
+      });
   });
 
   logger.info({ event: "engine.running" }, "Trade engine running");

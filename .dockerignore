@@ -1,0 +1,13 @@
+.git
+.github
+node_modules
+**/node_modules
+**/dist
+**/.turbo
+**/*.log
+.env
+.env.*
+!.env.example
+docs
+*.md
+infra/k8s

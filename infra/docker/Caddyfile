@@ -1,0 +1,19 @@
+{$APP_DOMAIN} {
+    # API — no buffering on SSE endpoint
+    @sse path /api/stream/*
+    handle @sse {
+        reverse_proxy api:3000 {
+            flush_interval -1
+        }
+    }
+
+    # All other API routes
+    handle /api/* {
+        reverse_proxy api:3000
+    }
+
+    # Mini App static files (SPA)
+    handle {
+        reverse_proxy miniapp:80
+    }
+}

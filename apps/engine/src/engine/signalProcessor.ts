@@ -13,6 +13,7 @@ import { executeForSubscriber } from "./subscriberExecutor.js";
 import { openPosition, closePosition } from "./positionTracker.js";
 import { Semaphore } from "./semaphore.js";
 import { logger } from "../logger.js";
+import { signalsProcessedTotal, tradesExecutedTotal } from "../metrics.js";
 
 const CONCURRENCY = 20;
 const prisma = createPrismaClient();
@@ -82,6 +83,8 @@ export async function processSignal(signal: TradeSignal): Promise<void> {
             },
           });
 
+          tradesExecutedTotal.inc({ status: trade?.status ?? "unknown" });
+
           if (trade?.status === "filled" && trade.executedPrice && trade.executedSize) {
             const price = Number(trade.executedPrice);
             const size = Number(trade.executedSize);
@@ -109,6 +112,7 @@ export async function processSignal(signal: TradeSignal): Promise<void> {
   );
 
   const failed = results.filter((r: PromiseSettledResult<void>) => r.status === "rejected").length;
+  signalsProcessedTotal.inc({ status: failed === 0 ? "success" : "partial_failure" });
   log.info(
     { event: "processor.complete", total: subscribers.length, failed },
     "Signal processing complete",
