@@ -20,8 +20,18 @@ export async function buildServer() {
     trustProxy: true,
   });
 
+  // CORS — fail closed. In production, CORS_ORIGIN must be set explicitly
+  // (e.g. https://app.example.com). Defaulting to `true` (allow-all) would let
+  // any origin call authenticated endpoints with credentials.
+  const corsOrigin = process.env["CORS_ORIGIN"];
+  if (!corsOrigin) {
+    if (process.env["NODE_ENV"] === "production") {
+      throw new Error("CORS_ORIGIN must be set in production");
+    }
+    app.log.warn("CORS_ORIGIN not set — allowing localhost only");
+  }
   await app.register(cors, {
-    origin: process.env["CORS_ORIGIN"] ?? true,
+    origin: corsOrigin ?? ["http://localhost:5173", "http://localhost:3000"],
     credentials: true,
   });
 

@@ -54,7 +54,8 @@ export function validateInitData(initData: string, botToken: string): TmaUser {
     .map(([k, v]) => `${k}=${v}`)
     .join("\n");
 
-  const secretKey = hmacSha256("WebAppData", botToken);
+  // Per Telegram spec: secret_key = HMAC-SHA256(key="WebAppData", msg=bot_token)
+  const secretKey = hmacSha256(botToken, "WebAppData");
   const expectedHash = hmacSha256(dataCheckString, secretKey).toString("hex");
 
   // Constant-time comparison

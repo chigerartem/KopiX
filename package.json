@@ -10,6 +10,9 @@
     "dev": "turbo dev",
     "lint": "turbo lint",
     "typecheck": "turbo typecheck",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
     "format": "prettier --write \"**/*.{ts,tsx,js,json,md}\" --ignore-path .gitignore",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,json,md}\" --ignore-path .gitignore",
     "db:generate": "turbo db:generate",
@@ -24,7 +27,8 @@
     "eslint": "^9.26.0",
     "prettier": "^3.5.3",
     "turbo": "^2.5.3",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "vitest": "^2.1.9"
   },
   "engines": {
     "node": ">=22.0.0",
