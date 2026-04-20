@@ -147,10 +147,11 @@ export async function updateCredentials(
 }
 
 export async function deleteCredentials(_brokerAccountId: string): Promise<void> {
-  // TODO(backend): add DELETE /api/exchange/credentials (zero out
-  // apiKeyEncrypted/apiSecretEncrypted on the subscriber row). Until then,
-  // disconnect is not supported — surface a clear error to the UI.
-  throw new Error("Disconnect is not yet available. Contact support to remove your BingX keys.");
+  const res = await apiRequest("/exchange/credentials", { method: "DELETE" });
+  if (!res.ok) {
+    const body = await parseJson(res);
+    throw new Error(errorMessageFromBody(body, res.status));
+  }
 }
 
 // --- subscriber profile / copy settings -------------------------------------
@@ -281,15 +282,14 @@ export async function syncSubscriptionPaymentStatus(): Promise<{
 // --- balance / positions / trades / stats -----------------------------------
 
 export async function getBalance(): Promise<number> {
-  // TODO(backend): expose GET /api/balance returning current BingX futures
-  // balance (engine/exchange already has this call). For now, derive from
-  // stats.realizedPnl → not the same as live balance, but > nothing.
+  // Returns current BingX USDT-M futures balance (available). If the user has
+  // not connected a key yet, the backend responds 409 and we surface 0.
   try {
-    const res = await apiRequest("/stats", { method: "GET" });
-    const body = await parseJson(res);
+    const res = await apiRequest("/exchange/balance", { method: "GET" });
     if (!res.ok) return 0;
+    const body = await parseJson(res);
     const o = asObject(body);
-    return asNumber(o.realizedPnl, 0);
+    return asNumber(o.available, 0);
   } catch {
     return 0;
   }
@@ -383,10 +383,19 @@ export type SwapIncomePoint = {
 };
 
 export async function getSwapPnlHistory(): Promise<SwapIncomePoint[]> {
-  // TODO(backend): expose GET /api/pnl-history with per-day BingX income.
-  // Dashboard uses this to compute "today's PnL" — returning an empty array
-  // makes that widget read 0, which is correct until the endpoint lands.
-  return [];
+  // Daily PnL snapshots (written by the engine's close-position path).
+  // Returns points with timeMs = snapshot midnight UTC, asset = "USDT".
+  const res = await apiRequest("/pnl-history?days=30", { method: "GET" });
+  if (!res.ok) return [];
+  const body = await parseJson(res);
+  const rows = Array.isArray(body)
+    ? (body as Array<{ date: string; realizedPnl: number | string }>)
+    : [];
+  return rows.map((r) => ({
+    timeMs: new Date(r.date).getTime(),
+    income: asNumber(r.realizedPnl, 0),
+    asset: "USDT",
+  }));
 }
 
 // --- copy settings ----------------------------------------------------------

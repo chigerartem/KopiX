@@ -1,12 +1,13 @@
 /**
- * GET /api/trades   — paginated trade history with P&L
- * GET /api/positions — open positions
- * GET /api/stats    — aggregate P&L, win rate, total trades
+ * GET /api/trades       — paginated trade history with P&L
+ * GET /api/positions    — open positions
+ * GET /api/stats        — aggregate P&L, win rate, total trades
+ * GET /api/pnl-history  — daily realized-PnL snapshots for charts
  */
 
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { createPrismaClient, type CopiedTrade, type Position } from "@kopix/db";
+import { createPrismaClient, type CopiedTrade, type Position, type PnlSnapshot } from "@kopix/db";
 import { requireTmaAuth } from "../middleware/auth.js";
 
 const prisma = createPrismaClient();
@@ -14,6 +15,10 @@ const prisma = createPrismaClient();
 const TradesQuery = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
   offset: z.coerce.number().int().min(0).default(0),
+});
+
+const PnlHistoryQuery = z.object({
+  days: z.coerce.number().int().min(1).max(365).default(30),
 });
 
 export async function tradeRoutes(app: FastifyInstance): Promise<void> {
@@ -146,6 +151,45 @@ export async function tradeRoutes(app: FastifyInstance): Promise<void> {
         realizedPnl,
         winRate,
       });
+    },
+  );
+
+  // GET /api/pnl-history
+  //
+  // Returns up to N days of daily PnL snapshots (written by the engine's
+  // close-position path). The dashboard uses this for the "today's PnL"
+  // widget and the sparkline; missing days collapse to 0 client-side.
+  app.get(
+    "/api/pnl-history",
+    {
+      preHandler: requireTmaAuth,
+      config: { rateLimit: { max: 60, timeWindow: 60_000 } },
+    },
+    async (request, reply) => {
+      const qr = PnlHistoryQuery.safeParse(request.query);
+      if (!qr.success) {
+        await reply.status(400).send({ error: "Invalid query params" });
+        return;
+      }
+      const { days } = qr.data;
+
+      const since = new Date();
+      since.setUTCHours(0, 0, 0, 0);
+      since.setUTCDate(since.getUTCDate() - days + 1);
+
+      const snapshots = await prisma.pnlSnapshot.findMany({
+        where: { subscriberId: request.subscriberId, date: { gte: since } },
+        orderBy: { date: "asc" },
+      });
+
+      await reply.send(
+        snapshots.map((s: PnlSnapshot) => ({
+          date: s.date.toISOString(),
+          realizedPnl: Number(s.realizedPnl),
+          totalTrades: s.totalTrades,
+          winningTrades: s.winningTrades,
+        })),
+      );
     },
   );
 }

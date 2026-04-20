@@ -11,8 +11,8 @@
 
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { validateCredentials } from "@kopix/exchange";
-import { encrypt } from "@kopix/crypto";
+import { validateCredentials, getBalance } from "@kopix/exchange";
+import { encrypt, decrypt } from "@kopix/crypto";
 import { createPrismaClient } from "@kopix/db";
 import { requireTmaAuth } from "../middleware/auth.js";
 
@@ -81,6 +81,87 @@ export async function exchangeRoutes(app: FastifyInstance): Promise<void> {
         connected: true,
         futuresBalance: validation.futuresBalance ?? 0,
       });
+    },
+  );
+
+  /**
+   * GET /api/exchange/balance
+   *
+   * Returns live BingX USDT-M futures balance for the authenticated subscriber.
+   * Decrypts stored credentials, calls exchange.getBalance, never logs or
+   * returns the plaintext key. Returns 409 if no credentials are connected.
+   */
+  app.get(
+    "/api/exchange/balance",
+    {
+      preHandler: requireTmaAuth,
+      config: { rateLimit: { max: 30, timeWindow: 60_000 } },
+    },
+    async (request, reply) => {
+      const subscriber = await prisma.subscriber.findUnique({
+        where: { id: request.subscriberId },
+        select: { apiKeyEncrypted: true, apiSecretEncrypted: true },
+      });
+
+      if (!subscriber || !subscriber.apiKeyEncrypted || !subscriber.apiSecretEncrypted) {
+        await reply.status(409).send({ error: "No exchange credentials connected" });
+        return;
+      }
+
+      const encKey = process.env["APP_ENCRYPTION_KEY"];
+      if (!encKey) {
+        await reply.status(500).send({ error: "Server misconfiguration" });
+        return;
+      }
+
+      try {
+        const apiKey = decrypt(subscriber.apiKeyEncrypted, encKey);
+        const apiSecret = decrypt(subscriber.apiSecretEncrypted, encKey);
+        const balance = await getBalance({ apiKey, apiSecret });
+        await reply.status(200).send({
+          available: balance.available,
+          total: balance.total,
+          currency: balance.currency,
+        });
+      } catch (err) {
+        request.log.warn(
+          { event: "exchange.balance.failed", err: (err as Error).message },
+          "failed to fetch balance",
+        );
+        await reply.status(502).send({ error: "Exchange balance fetch failed" });
+      }
+    },
+  );
+
+  /**
+   * DELETE /api/exchange/credentials
+   *
+   * Disconnects the subscriber's BingX account by zero-ing out both
+   * encrypted credential fields. Also pauses copy-trading so the engine
+   * stops attempting to place orders.
+   */
+  app.delete(
+    "/api/exchange/credentials",
+    {
+      preHandler: requireTmaAuth,
+      config: { rateLimit: { max: 10, timeWindow: 60_000 } },
+    },
+    async (request, reply) => {
+      await prisma.subscriber.update({
+        where: { id: request.subscriberId },
+        data: {
+          apiKeyEncrypted: null,
+          apiSecretEncrypted: null,
+          status: "paused",
+        },
+      });
+
+      request.log.info(
+        { event: "exchange.disconnected", subscriberId: request.subscriberId },
+        "BingX credentials removed",
+      );
+
+      await reply.status(200).send({ disconnected: true });
     },
   );
 }
