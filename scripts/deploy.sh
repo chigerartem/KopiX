@@ -17,10 +17,11 @@ if [[ ! -f "$REPO_ROOT/.env" ]]; then
     exit 1
 fi
 
-echo "[deploy] pulling latest main..."
+DEPLOY_BRANCH="${DEPLOY_BRANCH:-dev}"
+echo "[deploy] pulling latest ${DEPLOY_BRANCH}..."
 git fetch --prune origin
-git checkout main
-git pull --ff-only origin main
+git checkout "$DEPLOY_BRANCH"
+git pull --ff-only origin "$DEPLOY_BRANCH"
 
 COMMIT_SHA="$(git rev-parse --short HEAD)"
 export COMMIT_SHA
@@ -53,7 +54,7 @@ else
 fi
 
 echo "[deploy] re-registering Telegram webhook (idempotent)..."
-node --env-file=.env --import tsx/esm scripts/register-webhook.ts
+node --env-file=.env --import tsx scripts/register-webhook.ts
 
 echo "[deploy] done. Commit $COMMIT_SHA is live."
 pm2 ls
