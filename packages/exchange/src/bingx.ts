@@ -1,4 +1,4 @@
-import { bingx as BingX, AuthenticationError, PermissionDenied } from "ccxt";
+import { bingx as BingX, AuthenticationError, PermissionDenied, ExchangeError } from "ccxt";
 import type {
   Credentials,
   ValidationResult,
@@ -44,10 +44,15 @@ export async function validateCredentials(credentials: Credentials): Promise<Val
     //     exchange error) → key HAS the permission, reject for safety.
     // Fail-closed: on ambiguity we treat the key as unsafe.
     try {
-      // privateGetCapitalConfigGetall is a withdraw/capital-movement endpoint.
-      // A trade-only key returns PermissionDenied; a withdraw-capable key
-      // returns data. If the method itself is unavailable in ccxt, we fall
-      // back to assuming the permission is present (fail-closed).
+      // Probe a withdraw-scoped endpoint. BingX returns:
+      //   - data           → key has withdraw permission (reject)
+      //   - PermissionDenied / ExchangeError → trade-only key (accept)
+      //   - AuthenticationError → should not happen after balance fetch
+      //
+      // We treat PermissionDenied AND ExchangeError as "no withdraw permission"
+      // because BingX encodes access-denied as an exchange-level error code
+      // (e.g. 100500) rather than an HTTP 403, and ccxt maps that to ExchangeError,
+      // not PermissionDenied. Only a successful call means the key can withdraw.
       const ex = exchange as unknown as {
         privateGetCapitalConfigGetall?: () => Promise<unknown>;
       };
@@ -56,18 +61,29 @@ export async function validateCredentials(credentials: Credentials): Promise<Val
         // Call succeeded → key can access withdraw-scoped endpoints.
         hasWithdrawPermission = true;
       } else {
-        // Endpoint unknown to this ccxt version — fail closed.
-        hasWithdrawPermission = true;
+        // Method not available in this ccxt build — try fetchDepositAddresses
+        // as a fallback probe. Same logic: success = has permission.
+        try {
+          await exchange.fetchDepositAddresses(["USDT"]);
+          hasWithdrawPermission = true;
+        } catch (fallbackErr: unknown) {
+          // Any error here means the endpoint was blocked → trade-only key.
+          hasWithdrawPermission =
+            fallbackErr instanceof AuthenticationError ? true : false;
+        }
       }
     } catch (probeErr: unknown) {
-      if (probeErr instanceof PermissionDenied) {
+      if (
+        probeErr instanceof PermissionDenied ||
+        probeErr instanceof ExchangeError
+      ) {
+        // Both map to "access denied" on BingX for trade-only keys.
         hasWithdrawPermission = false;
       } else if (probeErr instanceof AuthenticationError) {
-        // Should not happen — balance fetch already succeeded. Fail closed.
+        // Should not happen after successful balance fetch. Fail closed.
         hasWithdrawPermission = true;
       } else {
-        // Any other error (including bad-param) — fail closed: assume
-        // permission may be present. Operator must use a trade-only key.
+        // Network error, timeout, etc. — fail closed.
         hasWithdrawPermission = true;
       }
     }
