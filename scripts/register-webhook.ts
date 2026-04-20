@@ -32,17 +32,24 @@ const body = new URLSearchParams({
   allowed_updates: JSON.stringify(["message", "callback_query"]),
 });
 
-const res = await fetch(`https://api.telegram.org/bot${token}/setWebhook`, {
-  method: "POST",
-  headers: { "content-type": "application/x-www-form-urlencoded" },
-  body,
-});
+async function main() {
+  const res = await fetch(`https://api.telegram.org/bot${token}/setWebhook`, {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body,
+  });
 
-const json = (await res.json()) as { ok: boolean; description?: string };
+  const json = (await res.json()) as { ok: boolean; description?: string };
 
-if (!res.ok || !json.ok) {
-  console.error("setWebhook failed:", json);
-  process.exit(1);
+  if (!res.ok || !json.ok) {
+    console.error("setWebhook failed:", json);
+    process.exit(1);
+  }
+
+  console.log(`webhook registered: ${webhookUrl} (${json.description ?? "ok"})`);
 }
 
-console.log(`webhook registered: ${webhookUrl} (${json.description ?? "ok"})`);
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
