@@ -4,4 +4,4 @@ export const KOPIX_TELEGRAM_BOT_URL =
 
 /** Support contact (opens Telegram app or t.me in browser). */
 export const KOPIX_SUPPORT_TELEGRAM_URL =
-  "https://t.me/LinkerFlugel" as const;
+  "https://t.me/acc_founder" as const;
