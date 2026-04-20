@@ -41,7 +41,7 @@ function statusBadge(status: string): string {
 }
 
 export async function adminRoutes(app: FastifyInstance): Promise<void> {
-  app.get("/admin", async (request, reply) => {
+  app.get("/api/admin", async (request, reply) => {
     const secret = process.env["ADMIN_SECRET"];
     if (!secret) {
       await reply.status(503).send("ADMIN_SECRET is not configured on the server.");
