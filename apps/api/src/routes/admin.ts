@@ -148,24 +148,30 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     a{color:#38bdf8;text-decoration:none}
     a:hover{text-decoration:underline}
 
-    /* broadcast */
-    .broadcast{background:#1e293b;border-radius:10px;padding:24px;max-width:680px}
+    /* broadcast + dm panels */
+    .panel-wrap{display:flex;flex-direction:column;gap:20px;max-width:680px}
+    .broadcast{background:#1e293b;border-radius:10px;padding:24px}
     .bc-row{display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;align-items:center}
     .bc-row select{
       background:#0f172a;border:1px solid #334155;color:#e2e8f0;
       border-radius:6px;padding:7px 12px;font-size:13px;outline:none;flex:1;min-width:160px}
     .bc-count{color:#38bdf8;font-weight:600;font-size:13px;white-space:nowrap}
-    textarea,input[type=url]{
-      width:100%;background:#0f172a;border:1px solid #334155;color:#e2e8f0;
+    textarea,input[type=url],input[type=number]{
+      background:#0f172a;border:1px solid #334155;color:#e2e8f0;
       border-radius:6px;padding:10px 12px;font-size:13px;outline:none;
-      margin-bottom:10px;resize:vertical;font-family:inherit}
-    textarea{min-height:110px}
+      margin-bottom:10px;font-family:inherit}
+    textarea{width:100%;resize:vertical;min-height:110px;display:block}
+    input[type=url]{width:100%;display:block}
+    input[type=number]{width:140px}
     .bc-hint{color:#64748b;font-size:11px;margin-bottom:10px;margin-top:-6px}
+    .dm-row{display:flex;gap:10px;margin-bottom:14px;align-items:center;flex-wrap:wrap}
+    .dm-label{color:#94a3b8;font-size:13px;white-space:nowrap;font-weight:600}
+    .dm-preview{font-size:13px;color:#64748b}
     .send-btn{background:#3b82f6;color:#fff;border:none;border-radius:6px;
       padding:10px 24px;font-size:14px;font-weight:600;cursor:pointer}
     .send-btn:hover{background:#2563eb}
     .send-btn:disabled{background:#334155;color:#64748b;cursor:not-allowed}
-    #bc-res{margin-top:12px;font-size:13px;font-weight:500}
+    .res-line{margin-top:12px;font-size:13px;font-weight:500}
   </style>
 </head>
 <body>
@@ -210,6 +216,28 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     </table>
   </div>
 
+  <div class="panel-wrap">
+
+  <!-- ── Direct Message ── -->
+  <div class="broadcast">
+    <h2>✉️ Личное сообщение</h2>
+
+    <div class="dm-row">
+      <span class="dm-label">#</span>
+      <input id="dm-num" type="number" min="1" max="${totalCount}"
+             placeholder="Номер из таблицы" oninput="lookupDm()">
+      <span id="dm-preview" class="dm-preview">— введите номер строки</span>
+    </div>
+
+    <textarea id="dm-msg" placeholder="Текст сообщения. HTML: &lt;b&gt;жирный&lt;/b&gt;, &lt;i&gt;курсив&lt;/i&gt;"></textarea>
+    <div class="bc-hint">HTML-теги: &lt;b&gt; &lt;i&gt; &lt;u&gt; &lt;s&gt; &lt;code&gt; &lt;pre&gt; &lt;a href="..."&gt; — как в Telegram</div>
+
+    <input id="dm-photo" type="url" placeholder="URL фото (опционально)">
+
+    <button id="dm-btn" class="send-btn" onclick="sendDm()">Отправить</button>
+    <div id="dm-res" class="res-line"></div>
+  </div>
+
   <!-- ── Broadcast ── -->
   <div class="broadcast">
     <h2>📢 Рассылка</h2>
@@ -234,8 +262,10 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     <input id="bc-photo" type="url" placeholder="URL фото (опционально, например https://i.imgur.com/xxx.jpg)">
 
     <button id="bc-btn" class="send-btn" onclick="sendBc()">Отправить рассылку</button>
-    <div id="bc-res"></div>
+    <div id="bc-res" class="res-line"></div>
   </div>
+
+  </div><!-- /.panel-wrap -->
 
   <script>
     const TOK = ${tokenJs};
@@ -273,6 +303,77 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
          && (bx  === 'all' || r.dataset.bingx    === bx)) n++;
       });
       document.getElementById('bc-n').textContent = n;
+    }
+
+    // ── direct message ────────────────────────────────────────────────────────
+    var dmTgId = null;
+
+    function lookupDm() {
+      var num = parseInt(document.getElementById('dm-num').value);
+      var preview = document.getElementById('dm-preview');
+      dmTgId = null;
+
+      if (!num || num < 1) {
+        preview.textContent = '— введите номер строки';
+        preview.style.color = '#64748b';
+        return;
+      }
+
+      // Scan all rows (including filtered-out hidden ones) by first cell number
+      var found = null;
+      document.querySelectorAll('tbody tr[data-tgid]').forEach(function(r) {
+        if (r.cells[0] && parseInt(r.cells[0].textContent) === num) found = r;
+      });
+
+      if (!found) {
+        preview.textContent = '— пользователь #' + num + ' не найден';
+        preview.style.color = '#ef4444';
+        return;
+      }
+
+      dmTgId = found.dataset.tgid;
+      var uname = found.dataset.username ? '@' + found.dataset.username : '';
+      var label = uname ? uname + ' (ID: ' + dmTgId + ')' : 'ID: ' + dmTgId;
+      preview.textContent = '→ ' + label;
+      preview.style.color = '#22c55e';
+    }
+
+    async function sendDm() {
+      if (!dmTgId) { alert('Введите номер пользователя из таблицы'); return; }
+      var msg = document.getElementById('dm-msg').value.trim();
+      if (!msg) { alert('Введите текст сообщения'); return; }
+
+      var btn = document.getElementById('dm-btn');
+      var res = document.getElementById('dm-res');
+      btn.disabled = true;
+      btn.textContent = 'Отправка…';
+      res.textContent = '';
+
+      try {
+        var photo = document.getElementById('dm-photo').value.trim();
+        var resp = await fetch('/api/admin/broadcast?token=' + encodeURIComponent(TOK), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: msg, photoUrl: photo || undefined, telegramId: dmTgId })
+        });
+        var data = await resp.json();
+        if (resp.ok && data.sent > 0) {
+          res.style.color = '#22c55e';
+          res.textContent = '✅ Сообщение доставлено';
+        } else if (resp.ok) {
+          res.style.color = '#ef4444';
+          res.textContent = '❌ Telegram не принял сообщение (пользователь заблокировал бота?)';
+        } else {
+          res.style.color = '#ef4444';
+          res.textContent = '❌ Ошибка: ' + (data.error || resp.status);
+        }
+      } catch(e) {
+        res.style.color = '#ef4444';
+        res.textContent = '❌ ' + e.message;
+      }
+
+      btn.disabled = false;
+      btn.textContent = 'Отправить';
     }
 
     // ── broadcast send ────────────────────────────────────────────────────────
@@ -338,6 +439,8 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     const body = request.body as {
       message?: string;
       photoUrl?: string;
+      /** Direct message: send to this specific Telegram ID only, skip filters. */
+      telegramId?: string;
       filter?: { subStatus?: string; hasBingx?: string };
     };
 
@@ -352,30 +455,44 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       return;
     }
 
-    const hasBingxFilter = body.filter?.hasBingx;
-    const subStatusFilter = body.filter?.subStatus;
+    // ── Resolve target list ──────────────────────────────────────────────────
+    let targets: Array<{ telegramId: bigint }>;
 
-    // Build Prisma where clause (only BingX filter is expressible at DB level)
-    const where: Record<string, unknown> = {};
-    if (hasBingxFilter === "yes") where["apiKeyEncrypted"] = { not: null };
-    if (hasBingxFilter === "no") where["apiKeyEncrypted"] = null;
+    if (body.telegramId) {
+      // Direct message — single subscriber by Telegram ID
+      const tgId = BigInt(body.telegramId);
+      const sub = await prisma.subscriber.findFirst({ where: { telegramId: tgId } });
+      if (!sub) {
+        await reply.status(404).send({ error: "Subscriber not found" });
+        return;
+      }
+      targets = [sub];
+    } else {
+      // Broadcast — apply filters
+      const hasBingxFilter = body.filter?.hasBingx;
+      const subStatusFilter = body.filter?.subStatus;
 
-    const subscribers = await prisma.subscriber.findMany({
-      where,
-      include: {
-        subscriptions: {
-          where: { status: "active", expiresAt: { gt: new Date() } },
-          take: 1,
+      const where: Record<string, unknown> = {};
+      if (hasBingxFilter === "yes") where["apiKeyEncrypted"] = { not: null };
+      if (hasBingxFilter === "no") where["apiKeyEncrypted"] = null;
+
+      const subscribers = await prisma.subscriber.findMany({
+        where,
+        include: {
+          subscriptions: {
+            where: { status: "active", expiresAt: { gt: new Date() } },
+            take: 1,
+          },
         },
-      },
-    });
+      });
 
-    // Apply subscription status filter in memory
-    let targets = subscribers;
-    if (subStatusFilter === "active") {
-      targets = subscribers.filter((s) => s.subscriptions.length > 0);
-    } else if (subStatusFilter === "none") {
-      targets = subscribers.filter((s) => s.subscriptions.length === 0);
+      let filtered = subscribers;
+      if (subStatusFilter === "active") {
+        filtered = subscribers.filter((s) => s.subscriptions.length > 0);
+      } else if (subStatusFilter === "none") {
+        filtered = subscribers.filter((s) => s.subscriptions.length === 0);
+      }
+      targets = filtered;
     }
 
     const message = body.message.trim();
