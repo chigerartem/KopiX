@@ -1,7 +1,9 @@
 /**
- * Dashboard subscription callout. State from AppStateContext until billing API exists.
+ * Read-only subscription status card.
+ *
+ * Shows active status + expiry date, or a hint to use the bot.
+ * Subscription purchase is handled in the bot via /subscribe.
  */
-import { useNavigate } from "react-router-dom";
 import { useAppState } from "@/contexts/AppStateContext";
 import styles from "./SubscriptionCard.module.css";
 
@@ -17,40 +19,17 @@ function formatValidUntil(iso: string): string {
   }
 }
 
-type SubscriptionCardProps = {
-  /** Dashboard-only: reopen CryptoBot checkout for pending invoice. */
-  onPay?: () => void;
-};
-
-export function SubscriptionCard({ onPay }: SubscriptionCardProps) {
-  const navigate = useNavigate();
+export function SubscriptionCard() {
   const { subscriptionStatus, subscriptionValidUntil } = useAppState();
 
   const isActive = subscriptionStatus === "active";
-  const isPaymentPending = subscriptionStatus === "payment_pending";
-
-  const handleActivate = () => {
-    navigate("/subscription/setup");
-  };
-
-  const handlePay = () => {
-    onPay?.();
-  };
-
-  const panelClass = `${styles.panel} ${isPaymentPending ? styles.panelPending : ""}`;
 
   return (
     <section
       className={styles.section}
-      aria-label={
-        isActive
-          ? "Copy trading access"
-          : isPaymentPending
-            ? "Payment pending"
-            : "Start copy trading"
-      }
+      aria-label={isActive ? "Copy trading access" : "No active subscription"}
     >
-      <div className={panelClass}>
+      <div className={styles.panel}>
         <div className={styles.body}>
           {isActive ? (
             <>
@@ -65,26 +44,12 @@ export function SubscriptionCard({ onPay }: SubscriptionCardProps) {
                   : "—"}
               </p>
             </>
-          ) : isPaymentPending ? (
-            <>
-              <div className={styles.titleRow}>
-                <span className={styles.pendingDot} aria-hidden />
-                <h2 className={styles.title}>Payment pending</h2>
-              </div>
-              <p className={styles.subtitle}>
-                Complete payment to start copying trades
-              </p>
-              <button type="button" className={styles.cta} onClick={handlePay}>
-                Pay
-              </button>
-            </>
           ) : (
             <>
-              <h2 className={styles.title}>Start copying trades</h2>
-              <p className={styles.subtitle}>Activate access to begin</p>
-              <button type="button" className={styles.cta} onClick={handleActivate}>
-                Activate
-              </button>
+              <h2 className={styles.title}>No subscription</h2>
+              <p className={styles.subtitle}>
+                Use /subscribe in the bot to activate
+              </p>
             </>
           )}
         </div>

@@ -4,13 +4,13 @@
  * Auth: `Authorization: TMA <Telegram.WebApp.initData>`
  *   Middleware lives in apps/api/src/middleware/auth.ts.
  *
- * This file exposes the legacy function names the UI was originally written
- * against (postCredentials, getSwapPositions, getClientConfig, …) so the pages
- * don't need to be rewritten. Each adapter maps those calls onto the actual
- * KopiX routes. Where the UI expects a feature that the backend does not yet
- * expose (e.g. live BingX balance, BingX PnL history), the adapter degrades
- * gracefully (empty list / zero) and a TODO is noted in the corresponding
- * section. Replacing those stubs is a backend task, not a UI task.
+ * The miniapp is a read-only dashboard:
+ *   - Balance, open positions, closed trades, PnL history
+ *   - Subscription status (read-only)
+ *
+ * API key connection   → /connect in the bot
+ * Copy settings        → /mode in the bot
+ * Subscription purchase → /subscribe in the bot
  */
 import type { OpenTradePosition } from "@/types/trade";
 import type { SubscriptionStatus } from "@/types/app";
@@ -39,7 +39,7 @@ export function apiRequest(path: string, init?: RequestInit): Promise<Response> 
   return fetch(`${BASE_URL}${p}`, { ...init, headers });
 }
 
-// --- helpers ----------------------------------------------------------------
+// ── helpers ──────────────────────────────────────────────────────────────────
 
 type JsonObject = Record<string, unknown>;
 
@@ -78,212 +78,9 @@ function errorMessageFromBody(body: unknown, status: number): string {
   return `HTTP ${status}`;
 }
 
-// --- credentials (single BingX connection per subscriber) -------------------
-//
-// Backend exposes `POST /api/exchange/validate`, which validates the key pair,
-// rejects if withdraw is permitted, encrypts, and stores it on the subscriber
-// row. There is no multi-broker / named-account concept server-side, so the
-// UI's "list of keys" is synthesized as a 0-or-1 item list.
-
-export const BINGX_BROKER_ID =
-  "11111111-1111-1111-1111-111111111111" as const;
-export const BINGX_BROKER_NAME = "BingX" as const;
-
-export type PostCredentialsBody = {
-  name: string;
-  apiKey: string;
-  apiSecret: string;
-  brokerName: string;
-  brokerId: string;
-  type: "apiKey";
-};
-
-export async function postCredentials(
-  payload: PostCredentialsBody,
-): Promise<{ brokerAccountId: string | null }> {
-  const res = await apiRequest("/exchange/validate", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ apiKey: payload.apiKey, apiSecret: payload.apiSecret }),
-  });
-  const body = await parseJson(res);
-  if (!res.ok) throw new Error(errorMessageFromBody(body, res.status));
-  return { brokerAccountId: BINGX_BROKER_ID };
-}
-
-export type ApiCredentialListItem = {
-  brokerAccountId: string;
-  brokerName: string;
-  accountLabel: string | null;
-  isValid: boolean;
-  updatedAt: string;
-};
-
-export async function getCredentialsList(): Promise<ApiCredentialListItem[]> {
-  const me = await getSubscriberMe();
-  if (!me.hasExchangeConnected) return [];
-  return [
-    {
-      brokerAccountId: BINGX_BROKER_ID,
-      brokerName: BINGX_BROKER_NAME,
-      accountLabel: null,
-      isValid: true,
-      updatedAt: new Date().toISOString(),
-    },
-  ];
-}
-
-export async function updateCredentials(
-  _brokerAccountId: string,
-  payload: Omit<PostCredentialsBody, "brokerName" | "brokerId" | "type">,
-): Promise<void> {
-  // Re-validate overwrites the stored keys server-side (same endpoint).
-  await postCredentials({
-    ...payload,
-    brokerId: BINGX_BROKER_ID,
-    brokerName: BINGX_BROKER_NAME,
-    type: "apiKey",
-  });
-}
-
-export async function deleteCredentials(_brokerAccountId: string): Promise<void> {
-  const res = await apiRequest("/exchange/credentials", { method: "DELETE" });
-  if (!res.ok) {
-    const body = await parseJson(res);
-    throw new Error(errorMessageFromBody(body, res.status));
-  }
-}
-
-// --- subscriber profile / copy settings -------------------------------------
-
-type SubscriberMeResponse = {
-  id: string;
-  telegramId: string;
-  telegramUsername?: string | null;
-  copyMode: "fixed" | "percentage";
-  fixedAmount: number | null;
-  percentage: number | null;
-  maxPositionUsdt: number | null;
-  status: string;
-  hasExchangeConnected: boolean;
-  subscription: {
-    id: string;
-    status: string;
-    startedAt: string;
-    expiresAt: string;
-    planName: string;
-    amountPaid: number;
-    currency: string;
-  } | null;
-};
-
-async function getSubscriberMe(): Promise<SubscriberMeResponse> {
-  const res = await apiRequest("/subscribers/me", { method: "GET" });
-  const body = await parseJson(res);
-  if (!res.ok) throw new Error(errorMessageFromBody(body, res.status));
-  return body as SubscriberMeResponse;
-}
-
-// --- subscription (plans + CryptoBot invoice) -------------------------------
-
-export type AccountSubscriptionStatusResponse = {
-  success: boolean;
-  state?: SubscriptionStatus;
-  payUrl?: string | null;
-  subscription?: {
-    activeTo?: string;
-    accountSubscriptionType?: "free" | "standart" | "pro";
-    isPaid?: boolean;
-  } | null;
-};
-
-export type StartSubscriptionPayInput = {
-  accountSubscriptionType: "standart" | "pro";
-  price?: number;
-  currency?: "USDT" | "USD" | "EUR";
-  period?: number;
-};
-
-export type ClientConfig = {
-  subscriptionPrice: number;
-};
-
-type PlanDto = {
-  id: string;
-  name: string;
-  price: number;
-  currency: string;
-  durationDays: number;
-};
-
-async function getPlans(): Promise<PlanDto[]> {
-  const res = await apiRequest("/plans", { method: "GET" });
-  const body = await parseJson(res);
-  if (!res.ok) throw new Error(errorMessageFromBody(body, res.status));
-  return Array.isArray(body) ? (body as PlanDto[]) : [];
-}
-
-export async function getClientConfig(): Promise<ClientConfig> {
-  const plans = await getPlans();
-  const first = plans[0];
-  return { subscriptionPrice: first ? Number(first.price) : 0 };
-}
-
-export async function startSubscriptionPayment(
-  _payload: StartSubscriptionPayInput,
-): Promise<{ payUrl: string | null; invoiceId: string | number | null }> {
-  // Backend model is plan-based (not type-based). Pick the cheapest active
-  // plan for now; once the UI exposes a plan picker, thread the chosen id in.
-  const plans = await getPlans();
-  const plan = plans[0];
-  if (!plan) throw new Error("No subscription plans are configured");
-
-  const res = await apiRequest("/subscriptions/create-invoice", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ planId: plan.id }),
-  });
-  const body = await parseJson(res);
-  if (!res.ok) throw new Error(errorMessageFromBody(body, res.status));
-  const o = asObject(body);
-  const payUrl =
-    typeof o.miniAppInvoiceUrl === "string"
-      ? o.miniAppInvoiceUrl
-      : typeof o.botInvoiceUrl === "string"
-        ? o.botInvoiceUrl
-        : null;
-  const invoiceId =
-    typeof o.invoiceId === "string" || typeof o.invoiceId === "number"
-      ? o.invoiceId
-      : null;
-  return { payUrl, invoiceId };
-}
-
-export async function syncSubscriptionPaymentStatus(): Promise<{
-  state: SubscriptionStatus;
-  payUrl: string | null;
-  activeTo: string | null;
-}> {
-  // Backend collapses "subscription status" into GET /api/subscribers/me.
-  // `active` iff a non-expired subscription row exists; otherwise `inactive`.
-  // Distinguishing `payment_pending` would need a separate backend field —
-  // not modeled today. `expired` is surfaced by an expiresAt in the past,
-  // but the backend filters those out, so we report `inactive`.
-  const me = await getSubscriberMe();
-  const state: SubscriptionStatus =
-    me.subscription && me.subscription.status === "active" ? "active" : "inactive";
-  return {
-    state,
-    payUrl: null,
-    activeTo: me.subscription?.expiresAt ?? null,
-  };
-}
-
-// --- balance / positions / trades / stats -----------------------------------
+// ── balance ───────────────────────────────────────────────────────────────────
 
 export async function getBalance(): Promise<number> {
-  // Returns current BingX USDT-M futures balance (available). If the user has
-  // not connected a key yet, the backend responds 409 and we surface 0.
   try {
     const res = await apiRequest("/exchange/balance", { method: "GET" });
     if (!res.ok) return 0;
@@ -294,6 +91,8 @@ export async function getBalance(): Promise<number> {
     return 0;
   }
 }
+
+// ── positions ─────────────────────────────────────────────────────────────────
 
 type PositionDto = {
   id: string;
@@ -330,6 +129,8 @@ export async function getSwapPositions(): Promise<OpenTradePosition[]> {
     };
   });
 }
+
+// ── trades ────────────────────────────────────────────────────────────────────
 
 type TradeDto = {
   id: string;
@@ -376,6 +177,8 @@ export async function getSwapClosedTrades(): Promise<OpenTradePosition[]> {
     });
 }
 
+// ── PnL history ───────────────────────────────────────────────────────────────
+
 export type SwapIncomePoint = {
   timeMs: number;
   income: number;
@@ -383,8 +186,6 @@ export type SwapIncomePoint = {
 };
 
 export async function getSwapPnlHistory(): Promise<SwapIncomePoint[]> {
-  // Daily PnL snapshots (written by the engine's close-position path).
-  // Returns points with timeMs = snapshot midnight UTC, asset = "USDT".
   const res = await apiRequest("/pnl-history?days=30", { method: "GET" });
   if (!res.ok) return [];
   const body = await parseJson(res);
@@ -398,61 +199,33 @@ export async function getSwapPnlHistory(): Promise<SwapIncomePoint[]> {
   }));
 }
 
-// --- copy settings ----------------------------------------------------------
+// ── subscription status (read-only) ──────────────────────────────────────────
 
-export type UserCopySettings = {
-  copyMode: "proportional" | "fixed";
-  proportionalPercent: string;
-  fixedAmountUsdt: string;
+type SubscriberMeResponse = {
+  subscription: {
+    status: string;
+    expiresAt: string;
+  } | null;
 };
 
-export async function getUserCopySettings(): Promise<{
-  hasActiveSubscription: boolean;
-  settings: UserCopySettings;
-}> {
-  const me = await getSubscriberMe();
-  const hasActiveSubscription =
-    !!me.subscription && me.subscription.status === "active";
-  if (me.copyMode === "fixed") {
-    return {
-      hasActiveSubscription,
-      settings: {
-        copyMode: "fixed",
-        proportionalPercent: "10",
-        fixedAmountUsdt: String(me.fixedAmount ?? 100),
-      },
-    };
-  }
-  return {
-    hasActiveSubscription,
-    settings: {
-      copyMode: "proportional",
-      proportionalPercent: String(me.percentage ?? 10),
-      fixedAmountUsdt: "100",
-    },
-  };
-}
-
-export async function updateUserCopySettings(input: UserCopySettings): Promise<void> {
-  const patchBody =
-    input.copyMode === "fixed"
-      ? {
-          copyMode: "fixed" as const,
-          fixedAmount: Math.max(0.01, Number(input.fixedAmountUsdt || "0")),
-        }
-      : {
-          copyMode: "percentage" as const,
-          percentage: Math.max(
-            0.01,
-            Math.min(100, Number(input.proportionalPercent || "0")),
-          ),
-        };
-
-  const res = await apiRequest("/subscribers/me", {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(patchBody),
-  });
+async function getSubscriberMe(): Promise<SubscriberMeResponse> {
+  const res = await apiRequest("/subscribers/me", { method: "GET" });
   const body = await parseJson(res);
   if (!res.ok) throw new Error(errorMessageFromBody(body, res.status));
+  return body as SubscriberMeResponse;
+}
+
+export async function syncSubscriptionPaymentStatus(): Promise<{
+  state: SubscriptionStatus;
+  payUrl: string | null;
+  activeTo: string | null;
+}> {
+  const me = await getSubscriberMe();
+  const state: SubscriptionStatus =
+    me.subscription && me.subscription.status === "active" ? "active" : "inactive";
+  return {
+    state,
+    payUrl: null,
+    activeTo: me.subscription?.expiresAt ?? null,
+  };
 }

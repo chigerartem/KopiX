@@ -5,16 +5,9 @@ import styles from "./DashboardSideMenu.module.css";
 type DashboardSideMenuProps = {
   open: boolean;
   onClose: () => void;
-  onApiKeysClick: () => void;
-  onCopySettingsClick: () => void;
 };
 
-export function DashboardSideMenu({
-  open,
-  onClose,
-  onApiKeysClick,
-  onCopySettingsClick,
-}: DashboardSideMenuProps) {
+export function DashboardSideMenu({ open, onClose }: DashboardSideMenuProps) {
   useEffect(() => {
     if (!open) return;
     const prev = document.body.style.overflow;
@@ -57,30 +50,6 @@ export function DashboardSideMenu({
             >
               Support
             </a>
-          </li>
-          <li>
-            <button
-              type="button"
-              className={styles.item}
-              onClick={() => {
-                onCopySettingsClick();
-                onClose();
-              }}
-            >
-              Copy Settings
-            </button>
-          </li>
-          <li>
-            <button
-              type="button"
-              className={styles.item}
-              onClick={() => {
-                onApiKeysClick();
-                onClose();
-              }}
-            >
-              API Keys
-            </button>
           </li>
         </ul>
       </nav>
