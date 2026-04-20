@@ -3,7 +3,7 @@
 # KopiX — one-time VPS setup (Ubuntu 22.04 / 24.04)
 #
 # Run as root:
-#   curl -fsSL https://raw.githubusercontent.com/chigerartem/KopiX/main/infra/scripts/server-setup.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/chigerartem/KopiX/dev/infra/scripts/server-setup.sh | sh
 #
 # After this script: follow docs/DEPLOY.md for clone → .env → start.
 # ============================================================
