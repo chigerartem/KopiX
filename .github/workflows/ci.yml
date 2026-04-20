@@ -1,0 +1,74 @@
+name: CI
+
+# PR-only validation. Deploys are manual from the VPS (see docs/DEPLOY.md).
+# We intentionally do NOT build Docker images or SSH into production from CI —
+# the daily flow is `git pull && ./scripts/deploy.sh` on the host.
+
+on:
+  pull_request:
+    branches: [main, dev]
+  push:
+    branches: [main]
+
+jobs:
+  validate:
+    name: Typecheck + Lint + Test
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: kopix_test
+          POSTGRES_USER: kopix
+          POSTGRES_PASSWORD: kopix
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U kopix -d kopix_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://kopix:kopix@localhost:5432/kopix_test
+      REDIS_URL: redis://localhost:6379
+      APP_ENCRYPTION_KEY: 0000000000000000000000000000000000000000000000000000000000000000
+      TELEGRAM_BOT_TOKEN: ci-dummy-token
+      BOT_WEBHOOK_SECRET: ci-dummy-secret
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Prisma generate
+        run: npm run db:generate --workspace @kopix/db
+
+      - name: Prisma migrate deploy
+        run: npm run db:migrate --workspace @kopix/db
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test

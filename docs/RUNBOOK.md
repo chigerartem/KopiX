@@ -1,242 +1,277 @@
-# KopiX Production Runbook
+# KopiX — Operations Runbook
 
-Operational procedures for the single-instance production deployment (Docker
-Compose). All paths are relative to the repo root unless noted.
+Day-to-day operations for the native (pm2) deployment. Assumes you've
+completed the [first-time setup in DEPLOY.md](DEPLOY.md).
 
-Audience: whoever is on-call. Assumes SSH access to the prod host and
-`$REPO/infra/compose/docker-compose.prod.yml` is the running stack.
-
----
-
-## 1. Stack overview
-
-| Service        | Role                                                  | Replicas |
-| -------------- | ----------------------------------------------------- | -------- |
-| `postgres`     | Primary DB (Postgres 16)                              | 1        |
-| `pgbouncer`    | Connection pool (transaction mode, 200 max clients)   | 1        |
-| `redis`        | Cache + Redis Streams signal bus (AOF on)             | 1        |
-| `api`          | Fastify REST + SSE for the Mini App                   | 1+       |
-| `bot`          | grammY Telegram bot (webhook mode)                    | 1        |
-| `engine`       | Master watcher + signal consumer + executor           | **1 only** |
-| `miniapp`      | Static React bundle served by nginx                   | 1+       |
-| `caddy`        | TLS termination + reverse proxy                       | 1        |
-| `prometheus`   | Metrics scrape, 30d retention                         | 1        |
-| `alertmanager` | Telegram notifications for Prometheus alerts          | 1        |
-| `grafana`      | Dashboards (auto-provisioned from `infra/monitoring`) | 1        |
-| `backup`       | Cron job, daily 02:00 UTC `pg_dump` → S3              | 1        |
-
-> **The engine must never run with `replicas: 2`.** Parallel consumers would
-> place duplicate orders on the same signal. The Compose file pins it to 1.
+All commands run as the `kopix` user on the VPS unless stated otherwise.
 
 ---
 
-## 2. Deploy an update
-
-Images are built and pushed by GitHub Actions (`.github/workflows/deploy.yml`)
-on every push to `main`. Each build pushes two tags: `${GITHUB_SHA}` and
-`latest`. Deploy re-runs the compose stack with the new tag pinned.
+## Quick reference
 
 ```bash
-# On the prod host:
 cd /opt/kopix
-export IMAGE_TAG=<git-sha>           # from the Actions run you want to deploy
-export GITHUB_REPO=chigerartem/kopix # owner/repo in ghcr.io
-docker compose -f infra/compose/docker-compose.prod.yml pull api bot engine miniapp
-docker compose -f infra/compose/docker-compose.prod.yml up -d api bot engine miniapp
-docker compose -f infra/compose/docker-compose.prod.yml ps
+
+./scripts/deploy.sh              # deploy latest main
+pm2 status                       # what's running
+pm2 logs kopix-engine --lines 200
+pm2 restart kopix-api            # single-service restart
+pm2 reload ecosystem.config.cjs  # reload all with new env
 ```
 
-Post-deploy sanity:
+---
+
+## Deploy a new version
 
 ```bash
-curl -fs https://$APP_DOMAIN/health/live
-curl -fs https://$APP_DOMAIN/health/ready
-docker compose logs --tail=50 engine | grep -E 'consumer.started|master.ws.open'
+cd /opt/kopix
+./scripts/deploy.sh
 ```
 
-Prisma migrations run automatically in `entrypoint-api.sh` before the API
-starts serving traffic.
+Runs: `git pull` → `npm ci` → `npm run build` → `npm run db:migrate` →
+`pm2 reload` → `webhook:register`. Idempotent — running it twice in a row on a
+clean tree is a fast no-op.
 
 ---
 
-## 3. Rollback
-
-If a deploy breaks production:
+## Rollback
 
 ```bash
-# Last known-good SHA should be pinned in the previous GitHub Actions run
-export IMAGE_TAG=<previous-good-sha>
-docker compose -f infra/compose/docker-compose.prod.yml pull api bot engine miniapp
-docker compose -f infra/compose/docker-compose.prod.yml up -d api bot engine miniapp
+cd /opt/kopix
+git log --oneline -n 10
+git checkout <previous-sha>
+./scripts/deploy.sh
 ```
 
-If a Prisma migration is the offender: do **not** auto-downgrade. Contact the
-DB owner; Prisma `migrate resolve` or a manual SQL fix is safer than a blind
-downgrade. `pg_dump` backups from `backup` container are the last resort (see
-§5).
-
----
-
-## 4. Backup & restore
-
-Daily `pg_dump` of `kopix` DB runs in the `backup` container at 02:00 UTC and
-uploads `kopix-YYYYMMDD-HHMM.sql.gz` to `s3://${BACKUP_S3_BUCKET}/`. Retention
-is 30 days (older objects are pruned by `backup.sh`).
-
-Verify last backup:
+If the previous commit had an older Prisma schema you need to restore the
+nightly dump first — **prisma migrate deploy does not roll back**.
 
 ```bash
-aws s3 ls s3://$BACKUP_S3_BUCKET/ --recursive | sort | tail -5
+gunzip -c /var/backups/kopix/<yyyy-mm-dd>.sql.gz \
+  | docker exec -i kopix-postgres psql -U kopix kopix
 ```
 
-### Restore from backup
+---
+
+## Restart a single service
 
 ```bash
-# 1. Stop writers
-docker compose stop engine bot api
-
-# 2. Fetch the snapshot
-aws s3 cp s3://$BACKUP_S3_BUCKET/kopix-YYYYMMDD-HHMM.sql.gz ./restore.sql.gz
-gunzip restore.sql.gz
-
-# 3. Drop & recreate the database (destructive — confirm you have the right SHA)
-docker compose exec postgres psql -U $POSTGRES_USER -d postgres -c 'DROP DATABASE kopix;'
-docker compose exec postgres psql -U $POSTGRES_USER -d postgres -c 'CREATE DATABASE kopix;'
-
-# 4. Replay
-cat restore.sql | docker compose exec -T postgres psql -U $POSTGRES_USER -d kopix
-
-# 5. Restart writers
-docker compose start api bot engine
+pm2 restart kopix-api        # or kopix-bot, kopix-engine
 ```
 
-After restore, verify the signal stream is consistent:
+For the engine, prefer `restart` over `reload` — Node's `--require` hooks +
+Redis consumer group handshake are finicky during graceful reload.
+
+---
+
+## Logs
 
 ```bash
-docker compose exec redis redis-cli XLEN trade-signals
-docker compose exec redis redis-cli XPENDING trade-signals engine-group
+pm2 logs                              # all streams
+pm2 logs kopix-engine --lines 500     # single process
+pm2 logs --err                        # stderr only
+
+# Raw files (rotated by pm2)
+ls ~/.pm2/logs/
 ```
 
----
-
-## 5. Common incidents
-
-### 5.1 `EngineDown` alert
-
-The engine process is gone. Copy trading is halted.
-
-1. `docker compose logs --tail=200 engine`
-2. Look for an unrecoverable exception (BingX auth, Redis auth, Postgres auth).
-3. `docker compose up -d engine` — Docker restart policy should already be
-   trying, so repeated failure means the issue is config or code.
-4. If the image itself is broken, rollback (§3).
-
-### 5.2 `MasterWatcherDisconnected` / `MasterWatcherStale`
-
-The engine is up but its WebSocket to BingX is not receiving events.
-
-1. Check `masterWatcherConnected` in Grafana — is it 0 or flapping?
-2. Check `masterWatcherLastEventTs` — if the gap exceeds the master's
-   expected trade cadence, the WS has stalled silently.
-3. `docker compose restart engine` will re-subscribe with a fresh listenKey.
-4. If it persists: check BingX status page; rotate master API credentials if
-   BingX returns `account disabled`.
-
-### 5.3 `HighTradeFailureRate`
-
-`kopix_trades_executed_total{status="failed"}` rising sharply.
-
-1. `docker compose logs --tail=500 engine | grep trade.fail`.
-2. Group the failures by reason:
-   - **Auth errors** — subscriber credentials stale; the executor auto-
-     suspends the subscriber. No action beyond watching the metric.
-   - **Insufficient balance** — expected; check whether a specific whale user
-     is spamming signals with a dry account.
-   - **BingX 5xx** — exchange outage; signals stay in PEL and will replay
-     when BingX recovers.
-3. If the exchange is fully down, consider pausing the engine (`docker
-   compose stop engine`) so PEL fills in an orderly way instead of burning
-   retries. Restart once BingX recovers — XAUTOCLAIM drains the PEL.
-
-### 5.4 `ApiHighErrorRate`
-
-5xx rate > 1% for 5 min.
-
-1. `docker compose logs --tail=500 api | grep -E '"level":50|error'`.
-2. Most common causes historically:
-   - DB connection saturation (pgbouncer pool exhausted) — scale `api` down
-     or raise `PGBOUNCER_DEFAULT_POOL_SIZE`.
-   - A bad deploy — rollback (§3).
-
-### 5.5 Postgres down
-
-1. `docker compose logs postgres` — disk full, OOM, corrupted WAL?
-2. If the data volume is intact: `docker compose restart postgres` usually
-   suffices. PgBouncer will reconnect automatically.
-3. If the data volume is lost: restore from backup (§4).
+Caddy logs: `journalctl -u caddy -f`.
+Postgres / Redis: `docker compose -f infra/compose/docker-compose.data.yml logs -f`.
 
 ---
 
-## 6. Rotating secrets
-
-All secrets are in `.env` on the prod host (base64-encoded in
-`PROD_ENV_B64` GitHub secret for CI deploys).
-
-- **`APP_ENCRYPTION_KEY`** — rotating this makes every stored subscriber API
-  key unreadable. Do **not** rotate without a re-encryption migration.
-  Procedure: dual-read (decrypt-with-old-or-new) for one deploy, rewrite all
-  rows with new key, then drop old key support. Not supported yet — file an
-  issue before attempting.
-- **`TELEGRAM_BOT_TOKEN`** — rotate via BotFather; update `.env`; redeploy
-  `api` and `bot`. The bot webhook needs to be re-registered.
-- **`CRYPTOBOT_API_TOKEN`** / **`WEBHOOK_SECRET`** — update `.env`, redeploy
-  `api`; existing signed URLs continue to work, only future webhooks use the
-  new secret.
-- **`MASTER_API_KEY` / `MASTER_API_SECRET`** — generate fresh BingX keys,
-  update `.env`, `docker compose up -d engine`. Expect one disconnect.
-
----
-
-## 7. Scaling up
-
-- **API**: stateless. Increase replicas in Compose and Caddy load-balances
-  automatically. Watch for pgbouncer pool saturation (`pg_stat_activity`).
-- **Bot**: single instance (webhook target is a single URL). Do not scale.
-- **Engine**: **never scale past 1**. If throughput becomes a bottleneck,
-  shard signals by symbol inside a single engine process instead.
-- **Miniapp**: stateless static content. Safe to scale; Caddy balances.
-
----
-
-## 8. Observability quick reference
-
-- Grafana: `https://$APP_DOMAIN/grafana` (admin / `$GRAFANA_ADMIN_PASSWORD`).
-- Dashboard: "KopiX" — master watcher state, signal throughput, trade
-  success/failure rates, API latency.
-- Prometheus: `https://$APP_DOMAIN/prometheus` (internal only).
-- Key metrics to eyeball during an incident:
-  - `kopix_master_watcher_connected`
-  - `kopix_master_watcher_last_event_ts` (age = `time() - value`)
-  - `rate(kopix_signals_processed_total[5m])`
-  - `rate(kopix_trades_executed_total{status="failed"}[5m])`
-  - `histogram_quantile(0.95, sum by (le) (rate(kopix_api_http_request_duration_seconds_bucket[5m])))`
-
----
-
-## 9. Load testing
+## Data layer
 
 ```bash
-# From a machine with k6 installed:
-API_URL=https://$APP_DOMAIN TMA_INIT_DATA="..." k6 run infra/scripts/loadtest.js
+docker compose -f infra/compose/docker-compose.data.yml ps
+docker compose -f infra/compose/docker-compose.data.yml restart redis
+docker compose -f infra/compose/docker-compose.data.yml restart postgres
 ```
 
-The script holds 100 concurrent VUs for 2 minutes. Thresholds fail the run
-if p95 > 500ms or error rate > 1%.
+### DB shell
+
+```bash
+docker exec -it kopix-postgres psql -U kopix kopix
+```
+
+### Redis CLI
+
+```bash
+docker exec -it kopix-redis redis-cli
+```
 
 ---
 
-## 10. Contact
+## DB backup / restore
 
-- **On-call rotation**: `#kopix-oncall` (Telegram).
-- **Code owners**: see `CODEOWNERS` (PRs against `main` require a review).
-- **Architecture source of truth**: `docs/ARCHITECTURE.md`.
+### Nightly cron (host)
+
+```cron
+# /etc/cron.d/kopix-backup (as root)
+0 3 * * * kopix docker exec kopix-postgres pg_dump -U kopix kopix \
+  | gzip > /var/backups/kopix/$(date +\%F).sql.gz
+```
+
+### Manual backup
+
+```bash
+docker exec kopix-postgres pg_dump -U kopix kopix \
+  | gzip > /var/backups/kopix/$(date +%F).sql.gz
+```
+
+### Restore
+
+```bash
+gunzip -c /var/backups/kopix/2026-04-18.sql.gz \
+  | docker exec -i kopix-postgres psql -U kopix kopix
+```
+
+---
+
+## Telegram webhook
+
+### Re-register (idempotent)
+
+```bash
+cd /opt/kopix
+npm run webhook:register
+```
+
+Deploys already call this — you only re-run it manually if:
+
+- You rotated `BOT_WEBHOOK_SECRET`
+- You changed `APP_DOMAIN`
+- Telegram reports the webhook as missing (`getWebhookInfo` returns empty url)
+
+### Check current webhook
+
+```bash
+curl -s "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getWebhookInfo" | jq
+```
+
+---
+
+## Miniapp cache / "user sees old UI"
+
+Root cause: Telegram WebView caches `index.html` aggressively by URL.
+
+Fix (already implemented):
+
+1. Caddy serves `/index.html` with `Cache-Control: no-store`. Verify:
+   ```bash
+   curl -I https://${APP_DOMAIN}/ | grep -i cache-control
+   # cache-control: no-store
+   ```
+2. Bot-posted URL contains `?v=<COMMIT_SHA>`. Verify in logs:
+   ```bash
+   pm2 logs kopix-bot | grep miniapp
+   ```
+3. `/assets/*` is `immutable, max-age=31536000` (content-hashed filenames).
+
+If a user still reports stale UI:
+
+- Telegram Desktop: right-click tray icon → Quit (not just close window).
+- Telegram iOS: force-quit + reopen.
+- Confirm the bot URL they tapped contains the current `?v=<sha>`.
+
+---
+
+## Engine singleton — how to verify
+
+```bash
+pm2 describe kopix-engine | grep -E 'exec mode|instances'
+# exec mode       │ fork_mode
+# instances       │ 1
+```
+
+**Never** do `pm2 scale kopix-engine 2`. A second instance subscribes to the
+same Redis stream with the same consumer name and will duplicate fills.
+
+Runtime self-check: the engine acquires a Redis consumer-group lock on startup;
+a second process aborts with `engine-lock-held`.
+
+---
+
+## Caddy
+
+```bash
+sudo systemctl reload caddy         # after editing /etc/caddy/Caddyfile
+sudo systemctl status caddy
+sudo caddy validate --config /etc/caddy/Caddyfile
+journalctl -u caddy -n 200
+```
+
+---
+
+## System reboot recovery
+
+systemd brings everything back automatically:
+
+```
+systemd → docker.service      → compose services (restart=unless-stopped)
+       → caddy.service         → reads /etc/caddy/Caddyfile
+       → pm2-kopix.service     → resurrects api, bot, engine from pm2 dump
+```
+
+Sanity check after reboot:
+
+```bash
+pm2 status
+docker compose -f /opt/kopix/infra/compose/docker-compose.data.yml ps
+curl -sI https://${APP_DOMAIN}/api/healthz
+```
+
+---
+
+## Incident triage
+
+### API returning 5xx
+
+1. `pm2 logs kopix-api --lines 200`
+2. `curl -s http://127.0.0.1:3000/api/healthz` — direct, bypass Caddy
+3. `docker exec kopix-postgres pg_isready -U kopix`
+4. `pm2 restart kopix-api` if process is wedged
+
+### Bot not responding
+
+1. `curl -s "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getWebhookInfo" | jq`
+2. `pm2 logs kopix-bot`
+3. Re-run `npm run webhook:register`
+4. Check Caddy route: `curl -sI https://${APP_DOMAIN}/api/bot/webhook` → 405 (POST only) is healthy
+
+### Engine stalled (no trades copied)
+
+1. `pm2 logs kopix-engine --lines 500`
+2. Check master WS watcher: look for `bingx:ws:connected` log
+3. Check Redis stream backlog:
+   ```bash
+   docker exec kopix-redis redis-cli XLEN trade-signals
+   docker exec kopix-redis redis-cli XINFO GROUPS trade-signals
+   ```
+4. `pm2 restart kopix-engine`
+
+### Subscriber can't connect API key
+
+1. Confirm key has **trade permission only**, no withdraw (`/connect` rejects
+   withdraw-enabled keys by design).
+2. `pm2 logs kopix-api | grep credentials`
+3. Check `APP_ENCRYPTION_KEY` is set and 32 bytes (64 hex chars).
+
+---
+
+## Secrets
+
+- `.env` lives at `/opt/kopix/.env`, mode `600`, owned by `kopix`.
+- Never commit. Never paste into chat or logs.
+- `APP_ENCRYPTION_KEY` rotation is not yet implemented — rotating it would
+  orphan every subscriber's stored credentials. Tracked as a follow-up.
+
+---
+
+## Known limitations
+
+- **Single-VPS SPOF.** No HA. Matches prior Docker setup.
+- **No Prometheus/Grafana** by default. Metrics endpoints still exist; attach
+  an external scraper if you need alerting.
+- **pgbouncer removed** — Prisma's built-in pool is enough at current scale.
+  Reintroduce if `pg_stat_activity` shows pool exhaustion.
