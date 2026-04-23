@@ -1,0 +1,104 @@
+.card {
+  margin-bottom: 0;
+  padding: 24px 20px 20px;
+  border-radius: 20px;
+  background: linear-gradient(
+    148deg,
+    rgba(59, 130, 246, 0.10) 0%,
+    rgba(11, 14, 22, 0.97) 45%,
+    rgba(5, 7, 14, 0.99) 100%
+  );
+  border: 1px solid rgba(59, 130, 246, 0.14);
+  box-shadow:
+    var(--ds-shadow-card),
+    0 0 60px rgba(59, 130, 246, 0.06);
+  transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
+}
+
+@media (hover: hover) {
+  .card:hover {
+    border-color: rgba(59, 130, 246, 0.22);
+    box-shadow: var(--ds-shadow-card-hover), 0 0 80px rgba(59, 130, 246, 0.09);
+    transform: translateY(-1px);
+  }
+}
+
+.card:active {
+  transform: translateY(0);
+  transition-duration: 0.1s;
+}
+
+.labelRow {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-xs);
+  margin: 0 0 14px;
+}
+
+.labelIcon {
+  flex-shrink: 0;
+  color: var(--accent-blue);
+  opacity: 0.7;
+}
+
+.label {
+  margin: 0;
+  font-size: 0.625rem;
+  font-weight: var(--ds-weight-label);
+  line-height: 1.25;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  opacity: 1;
+}
+
+.balance {
+  margin: 0;
+  font-size: 2.25rem;
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.unit {
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.pnl {
+  margin: 14px 0 0;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.45;
+  font-variant-numeric: tabular-nums;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.pnlPct {
+  font-weight: 600;
+  opacity: 0.9;
+}
+
+.pnlUp {
+  color: var(--profit);
+  background: rgba(16, 185, 129, 0.10);
+  border-color: rgba(16, 185, 129, 0.18);
+}
+
+.pnlDown {
+  color: var(--danger);
+  background: rgba(244, 63, 94, 0.09);
+  border-color: rgba(244, 63, 94, 0.16);
+}
+
+.pnlFlat {
+  color: var(--text-secondary);
+  background: rgba(148, 163, 184, 0.04);
+  border-color: var(--ds-divider);
+}

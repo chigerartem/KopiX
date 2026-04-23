@@ -1,0 +1,101 @@
+/* Absolute to dashboard page root — only covers the app shell column, not the full browser */
+.root {
+  position: absolute;
+  inset: 0;
+  z-index: 80;
+  pointer-events: none;
+}
+
+.root[data-open="true"] {
+  pointer-events: auto;
+}
+
+.backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  opacity: 0;
+  transition: opacity 0.28s ease;
+}
+
+.root[data-open="true"] .backdrop {
+  opacity: 1;
+}
+
+.panel {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: min(288px, 88%);
+  max-width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(
+    180deg,
+    rgba(11, 14, 22, 1) 0%,
+    rgba(7, 10, 16, 1) 100%
+  );
+  border-right: 1px solid var(--border-subtle);
+  box-shadow: 12px 0 40px rgba(0, 0, 0, 0.5);
+  transform: translate3d(-100%, 0, 0);
+  transition: transform 0.32s cubic-bezier(0.32, 0.72, 0, 1);
+  padding-top: max(var(--safe-top), 12px);
+  padding-bottom: max(var(--safe-bottom), 16px);
+}
+
+.root[data-open="true"] .panel {
+  transform: translate3d(0, 0, 0);
+}
+
+.nav {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 8px 0 0;
+  min-height: 0;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.item {
+  display: block;
+  width: 100%;
+  padding: 16px var(--ds-space-md);
+  border: none;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.06);
+  background: none;
+  text-align: left;
+  font-size: var(--ds-font-body);
+  font-weight: 500;
+  letter-spacing: var(--ds-tracking-section);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+a.item {
+  text-decoration: none;
+}
+
+a.item:visited {
+  color: var(--text-secondary);
+}
+
+.list > li:last-child .item {
+  border-bottom: none;
+}
+
+.item:hover {
+  background: rgba(59, 130, 246, 0.07);
+  color: var(--text-primary);
+}
+
+.item:active {
+  background: rgba(59, 130, 246, 0.04);
+}

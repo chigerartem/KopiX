@@ -69,6 +69,7 @@ web_modules/
 .env
 .env.*
 !.env.example
+!infra/compose/.env.example
 
 # parcel-bundler cache (https://parceljs.org/)
 .cache
@@ -137,3 +138,15 @@ dist
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# Turborepo
+.turbo/
+
+# Claude Code local settings (machine-specific)
+.claude/settings.local.json
+
+# Prisma generated client
+packages/db/generated/
+
+# Docker volumes
+infra/compose/volumes/

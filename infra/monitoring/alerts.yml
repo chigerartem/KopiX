@@ -1,0 +1,64 @@
+groups:
+  - name: kopix
+    rules:
+      - alert: EngineDown
+        expr: up{job="engine"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "KopiX trade engine is unreachable"
+          description: "Prometheus cannot scrape the engine metrics endpoint for 2 minutes. Copy trading is likely stopped."
+
+      - alert: MasterWatcherDisconnected
+        expr: kopix_master_watcher_connected == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "BingX WebSocket disconnected"
+          description: "The master watcher has been disconnected from BingX for 5 minutes. No new trade signals will be generated."
+
+      - alert: MasterWatcherStale
+        expr: (time() - kopix_master_watcher_last_event_timestamp_seconds) > 300
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "No events received from BingX for 5 minutes"
+          description: "The master watcher is connected but has not received any WebSocket messages for over 5 minutes."
+
+      - alert: HighTradeFailureRate
+        expr: >
+          rate(kopix_trades_executed_total{status="failed"}[5m])
+          /
+          (rate(kopix_trades_executed_total[5m]) + 0.001)
+          > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High trade execution failure rate (>10%)"
+          description: "More than 10% of subscriber trade executions are failing over the last 5 minutes."
+
+      - alert: ApiDown
+        expr: up{job="api"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "KopiX API is unreachable"
+          description: "Prometheus cannot scrape the API metrics endpoint for 2 minutes."
+
+      - alert: ApiHighErrorRate
+        expr: >
+          rate(kopix_api_http_requests_total{status_code=~"5.."}[5m])
+          /
+          (rate(kopix_api_http_requests_total[5m]) + 0.001)
+          > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "API 5xx error rate above 5%"
+          description: "The API is returning more than 5% server errors over the last 5 minutes."

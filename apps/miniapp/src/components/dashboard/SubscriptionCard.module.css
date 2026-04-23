@@ -1,0 +1,127 @@
+.section {
+  margin-bottom: 0;
+}
+
+.panel {
+  position: relative;
+  overflow: hidden;
+  border-radius: 20px;
+  background: linear-gradient(
+    148deg,
+    rgba(16, 185, 129, 0.07) 0%,
+    rgba(11, 14, 22, 0.96) 45%,
+    rgba(5, 7, 14, 0.98) 100%
+  );
+  border: 1px solid rgba(148, 163, 184, 0.09);
+  box-shadow: var(--ds-shadow-card);
+  transition: border-color 0.22s ease, box-shadow 0.22s ease;
+}
+
+.panelPending {
+  background: linear-gradient(
+    148deg,
+    rgba(245, 158, 11, 0.07) 0%,
+    rgba(11, 14, 22, 0.96) 45%,
+    rgba(5, 7, 14, 0.98) 100%
+  );
+  border-color: rgba(245, 158, 11, 0.12);
+}
+
+@media (hover: hover) {
+  .panel:hover {
+    border-color: rgba(148, 163, 184, 0.15);
+    box-shadow: var(--ds-shadow-card-hover);
+  }
+
+  .panelPending:hover {
+    border-color: rgba(245, 158, 11, 0.2);
+  }
+}
+
+.body {
+  padding: 20px;
+}
+
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+}
+
+.statusDot {
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--profit);
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.55), 0 0 4px rgba(16, 185, 129, 0.8);
+}
+
+.pendingDot {
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--badge-open);
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.45);
+}
+
+.title {
+  margin: 0 0 10px;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+  color: var(--text-primary);
+}
+
+.titleRow .title {
+  margin: 0;
+}
+
+.subtitle {
+  margin: 0 0 var(--ds-space-md);
+  font-size: var(--ds-font-body);
+  line-height: var(--ds-line-height-body);
+  font-weight: var(--ds-font-body-weight);
+  color: var(--text-secondary);
+}
+
+.subtitle:last-child {
+  margin-bottom: 0;
+}
+
+.cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: var(--ds-btn-height);
+  padding: 0 var(--ds-btn-padding-x);
+  margin-top: 0;
+  border-radius: var(--ds-btn-radius);
+  border: none;
+  background: var(--ds-btn-solid-bg);
+  color: var(--ds-btn-solid-text);
+  font-size: var(--ds-btn-font-size);
+  font-weight: var(--ds-btn-font-weight);
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  box-shadow: var(--ds-btn-solid-shadow);
+  transition: background 0.2s ease, box-shadow 0.2s ease, filter 0.15s ease,
+    transform 0.12s ease;
+}
+
+.cta:hover {
+  background: var(--ds-btn-solid-bg-hover);
+  box-shadow: 0 6px 28px rgba(37, 99, 235, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16);
+}
+
+.cta:active {
+  background: var(--ds-btn-solid-bg-active);
+  transform: scale(0.988);
+  box-shadow: var(--ds-btn-solid-shadow-active);
+  filter: brightness(0.97);
+}

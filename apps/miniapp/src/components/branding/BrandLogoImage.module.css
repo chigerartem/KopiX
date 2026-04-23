@@ -1,0 +1,18 @@
+.logo {
+  display: block;
+  height: auto;
+  object-fit: contain;
+  object-position: center;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.header {
+  width: min(240px, 78vw);
+  max-height: 52px;
+}
+
+.splash {
+  width: min(280px, 86vw);
+  max-height: 72px;
+}

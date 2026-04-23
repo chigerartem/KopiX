@@ -1,0 +1,55 @@
+# Host Caddyfile for KopiX.
+#
+# Install target: /etc/caddy/Caddyfile (symlink or cp). Reload:
+#   sudo caddy fmt --overwrite /etc/caddy/Caddyfile
+#   sudo systemctl reload caddy
+#
+# Expects APP_DOMAIN exported to the caddy process (e.g. in /etc/default/caddy
+# or via `Environment=APP_DOMAIN=...` in the systemd unit). Auto-TLS via Let's
+# Encrypt is Caddy's default; no extra config needed.
+#
+# Upstreams are native pm2 processes bound to loopback:
+#   api     127.0.0.1:3000
+#   bot     127.0.0.1:3001
+#
+# Static miniapp is served directly from the built dist/ dir — no container.
+
+{$APP_DOMAIN} {
+    encode zstd gzip
+
+    # --- Telegram bot webhook — must match before /api/* ---
+    handle /api/bot/webhook {
+        reverse_proxy 127.0.0.1:3001
+    }
+
+    # --- API: SSE endpoints (disable proxy buffering) ---
+    @sse path /api/stream/*
+    handle @sse {
+        reverse_proxy 127.0.0.1:3000 {
+            flush_interval -1
+        }
+    }
+
+    # --- API: everything else ---
+    handle /api/* {
+        reverse_proxy 127.0.0.1:3000
+    }
+
+    # --- Miniapp: hashed assets, cache forever ---
+    @assets path /assets/*
+    handle @assets {
+        header Cache-Control "public, max-age=31536000, immutable"
+        root * /opt/kopix/apps/miniapp/dist
+        file_server
+    }
+
+    # --- Miniapp: index.html + SPA fallback, never cache HTML ---
+    # Telegram caches WebApp HTML aggressively by URL; no-store + ?v=<sha> on the
+    # button URL is what actually forces clients to pick up new builds.
+    handle {
+        root * /opt/kopix/apps/miniapp/dist
+        header Cache-Control "no-store, must-revalidate"
+        try_files {path} /index.html
+        file_server
+    }
+}
