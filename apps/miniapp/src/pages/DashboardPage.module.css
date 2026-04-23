@@ -5,7 +5,7 @@
   min-height: 100dvh;
   min-height: 100vh;
   width: 100%;
-  background: var(--ds-surface-page);
+  background: transparent;
   color: var(--ds-text-primary);
 }
 
@@ -13,12 +13,11 @@
   flex: 1 1 auto;
   display: flex;
   flex-direction: column;
-  /* Same gap: logo block → balance → channel → trades */
-  gap: var(--dash-stack-gap);
+  gap: 0;
   width: 100%;
   max-width: 100%;
   margin: 0 auto;
-  padding-top: calc(max(var(--safe-top), var(--ds-space-md)) + 36px);
+  padding-top: calc(max(var(--safe-top), var(--ds-space-md)) + 44px);
   padding-left: max(var(--safe-left), var(--ds-space-md));
   padding-right: max(var(--safe-right), var(--ds-space-md));
   padding-bottom: calc(
@@ -31,7 +30,7 @@
   flex: 1 1 auto;
   display: flex;
   flex-direction: column;
-  gap: var(--dash-stack-gap);
+  gap: 12px;
   min-height: 0;
 }
 
@@ -51,12 +50,12 @@
   margin-right: auto;
   padding: var(--ds-space-sm) var(--ds-space-md);
   border-radius: var(--ds-radius-card);
-  background: var(--ds-surface-card);
-  border: 1px solid var(--ds-border-default);
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
   box-shadow: var(--ds-shadow-card);
   font-size: 0.8125rem;
   font-weight: 500;
-  color: var(--dash-text-primary);
+  color: var(--text-primary);
   text-align: center;
   pointer-events: none;
 }

@@ -5,7 +5,7 @@
   flex-shrink: 0;
   padding-bottom: var(--ds-space-sm);
   margin-bottom: var(--ds-space-md);
-  border-bottom: 1px solid var(--ds-divider);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.07);
 }
 
 .back {
@@ -17,16 +17,16 @@
   margin-left: -10px;
   padding: 0;
   border: none;
-  border-radius: var(--ds-radius-control);
+  border-radius: 10px;
   background: transparent;
-  color: var(--ds-text-primary);
+  color: var(--text-secondary);
   cursor: pointer;
   transition: background 0.2s ease, color 0.2s ease, transform 0.15s ease;
 }
 
 .back:hover {
-  background: rgba(77, 143, 255, 0.1);
-  color: var(--accent-blue);
+  background: rgba(59, 130, 246, 0.09);
+  color: var(--text-primary);
 }
 
 .back:active {
@@ -40,7 +40,7 @@
   letter-spacing: var(--ds-tracking-section);
   line-height: var(--ds-line-height-section);
   text-align: center;
-  color: var(--ds-text-primary);
+  color: var(--text-primary);
 }
 
 .spacer {

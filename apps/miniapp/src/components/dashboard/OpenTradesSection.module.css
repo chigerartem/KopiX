@@ -20,15 +20,15 @@
   margin: 0;
   font-size: var(--ds-font-section);
   font-weight: var(--ds-weight-section);
-  letter-spacing: var(--ds-tracking-section);
+  letter-spacing: -0.02em;
   line-height: var(--ds-line-height-section);
-  color: var(--ds-text-primary);
+  color: var(--text-primary);
 }
 
 .titleIcon {
   flex-shrink: 0;
   color: var(--accent-blue);
-  opacity: 0.88;
+  opacity: 0.8;
 }
 
 .manage {
@@ -37,12 +37,13 @@
   background: none;
   font-size: 0.8125rem;
   font-weight: 500;
-  color: var(--dash-text-secondary);
+  color: var(--text-muted);
   cursor: pointer;
+  transition: color 0.2s ease;
 }
 
 .manage:hover {
-  color: var(--accent-blue);
+  color: var(--accent-blue-bright);
 }
 
 .carouselWrap {
@@ -97,38 +98,38 @@
   box-sizing: border-box;
   scroll-snap-align: start;
   scroll-snap-stop: always;
-  padding: var(--ds-space-md);
-  border-radius: var(--ds-radius-card);
+  padding: 18px;
+  border-radius: 18px;
   background: linear-gradient(
-    160deg,
-    rgba(255, 255, 255, 0.045) 0%,
-    var(--ds-surface-card) 40%,
-    #18181c 100%
+    155deg,
+    rgba(255, 255, 255, 0.038) 0%,
+    rgba(11, 14, 22, 0.95) 42%,
+    rgba(5, 7, 14, 0.98) 100%
   );
-  border: 1px solid var(--ds-border-default);
+  border: 1px solid var(--border-subtle);
   box-shadow: var(--ds-shadow-card);
   transition: border-color 0.22s ease, box-shadow 0.22s ease;
 }
 
 @media (hover: hover) {
   .slideCard:hover {
-    border-color: var(--ds-border-accent);
+    border-color: rgba(59, 130, 246, 0.2);
     box-shadow: var(--ds-shadow-card-hover);
   }
 }
 
 .slideCardPlaceholder {
   background: linear-gradient(
-    160deg,
-    rgba(255, 255, 255, 0.03) 0%,
-    rgba(28, 28, 30, 0.84) 40%,
-    rgba(22, 22, 24, 0.9) 100%
+    155deg,
+    rgba(255, 255, 255, 0.022) 0%,
+    rgba(11, 14, 22, 0.82) 42%,
+    rgba(5, 7, 14, 0.88) 100%
   );
-  border-color: rgba(255, 255, 255, 0.07);
+  border-color: rgba(148, 163, 184, 0.06);
 }
 
 .placeholderText {
-  color: rgba(154, 154, 163, 0.9) !important;
+  color: var(--text-muted) !important;
 }
 
 .slideCard:active {
@@ -141,7 +142,7 @@
   justify-content: space-between;
   gap: var(--ds-space-md);
   padding-bottom: 14px;
-  border-bottom: 1px solid var(--ds-divider);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.07);
 }
 
 .pair {
@@ -151,7 +152,7 @@
   font-weight: 700;
   letter-spacing: var(--ds-tracking-section);
   font-variant-numeric: tabular-nums;
-  color: var(--ds-text-primary);
+  color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -171,7 +172,7 @@
 }
 
 .short {
-  color: #f6465d;
+  color: var(--danger);
 }
 
 .rowMid {
@@ -179,7 +180,7 @@
   flex-direction: column;
   gap: var(--ds-space-sm);
   padding: 14px 0;
-  border-bottom: 1px solid var(--ds-divider);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.07);
 }
 
 .kv {
@@ -193,7 +194,7 @@
 .k {
   font-size: var(--ds-font-body);
   font-weight: var(--ds-font-body-weight);
-  color: var(--ds-text-secondary);
+  color: var(--text-muted);
 }
 
 .v {
@@ -202,7 +203,7 @@
   font-size: 0.875rem;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-  color: var(--ds-text-primary);
+  color: var(--text-primary);
 }
 
 .rowBot {
@@ -222,20 +223,20 @@
   gap: 4px;
   min-width: 0;
   padding-right: 16px;
-  border-right: 1px solid var(--ds-divider);
+  border-right: 1px solid rgba(148, 163, 184, 0.07);
 }
 
 .marginLabel {
   font-size: var(--ds-font-body);
   font-weight: var(--ds-font-body-weight);
-  color: var(--ds-text-secondary);
+  color: var(--text-muted);
 }
 
 .marginValue {
   font-size: 0.875rem;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-  color: var(--ds-text-primary);
+  color: var(--text-primary);
 }
 
 .pnlBlock {
@@ -250,7 +251,7 @@
 .pnlLabel {
   font-size: var(--ds-font-body);
   font-weight: var(--ds-font-body-weight);
-  color: var(--ds-text-secondary);
+  color: var(--text-muted);
 }
 
 .pnlLine {
@@ -272,11 +273,11 @@
 }
 
 .pnlDown {
-  color: #f6465d;
+  color: var(--danger);
 }
 
 .pnlFlat {
-  color: var(--ds-text-secondary);
+  color: var(--text-secondary);
 }
 
 .indicators {
@@ -290,15 +291,15 @@
 
 .indicator {
   display: block;
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
-  background: rgba(142, 142, 147, 0.32);
+  background: rgba(148, 163, 184, 0.22);
   transition: transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
 }
 
 .indicatorActive {
   background: var(--accent-blue);
-  transform: scale(1.15);
-  box-shadow: 0 0 10px rgba(77, 143, 255, 0.32);
+  transform: scale(1.2);
+  box-shadow: 0 0 8px rgba(59, 130, 246, 0.4);
 }

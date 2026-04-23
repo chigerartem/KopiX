@@ -13,7 +13,7 @@
 .backdrop {
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.55);
+  background: rgba(0, 0, 0, 0.7);
   opacity: 0;
   transition: opacity 0.28s ease;
 }
@@ -32,9 +32,13 @@
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  background: var(--ds-surface-card);
-  border-right: 1px solid var(--ds-border-default);
-  box-shadow: 8px 0 32px rgba(0, 0, 0, 0.35);
+  background: linear-gradient(
+    180deg,
+    rgba(11, 14, 22, 1) 0%,
+    rgba(7, 10, 16, 1) 100%
+  );
+  border-right: 1px solid var(--border-subtle);
+  box-shadow: 12px 0 40px rgba(0, 0, 0, 0.5);
   transform: translate3d(-100%, 0, 0);
   transition: transform 0.32s cubic-bezier(0.32, 0.72, 0, 1);
   padding-top: max(var(--safe-top), 12px);
@@ -62,15 +66,15 @@
 .item {
   display: block;
   width: 100%;
-  padding: var(--ds-space-sm) var(--ds-space-md);
+  padding: 16px var(--ds-space-md);
   border: none;
-  border-bottom: 1px solid var(--ds-divider);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.06);
   background: none;
   text-align: left;
   font-size: var(--ds-font-body);
   font-weight: 500;
   letter-spacing: var(--ds-tracking-section);
-  color: var(--ds-text-primary);
+  color: var(--text-secondary);
   cursor: pointer;
   transition: background 0.2s ease, color 0.2s ease;
 }
@@ -80,7 +84,7 @@ a.item {
 }
 
 a.item:visited {
-  color: var(--ds-text-primary);
+  color: var(--text-secondary);
 }
 
 .list > li:last-child .item {
@@ -88,9 +92,10 @@ a.item:visited {
 }
 
 .item:hover {
-  background: rgba(77, 143, 255, 0.07);
+  background: rgba(59, 130, 246, 0.07);
+  color: var(--text-primary);
 }
 
 .item:active {
-  background: rgba(77, 143, 255, 0.04);
+  background: rgba(59, 130, 246, 0.04);
 }
