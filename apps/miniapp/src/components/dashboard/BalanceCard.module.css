@@ -4,19 +4,19 @@
   border-radius: var(--ds-radius-card);
   background: linear-gradient(
     158deg,
-    rgba(255, 255, 255, 0.06) 0%,
-    var(--ds-surface-card) 42%,
-    #18181c 100%
+    rgba(91, 155, 255, 0.09) 0%,
+    var(--ds-surface-card) 38%,
+    #0f0f16 100%
   );
-  border: 1px solid var(--ds-border-default);
-  box-shadow: var(--ds-shadow-card);
+  border: 1px solid rgba(91, 155, 255, 0.16);
+  box-shadow: var(--ds-shadow-card), 0 0 0 0.5px rgba(91, 155, 255, 0.08) inset;
   transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
 }
 
 @media (hover: hover) {
   .card:hover {
-    border-color: rgba(255, 255, 255, 0.1);
-    box-shadow: var(--ds-shadow-card-hover);
+    border-color: rgba(91, 155, 255, 0.28);
+    box-shadow: var(--ds-shadow-card-hover), 0 0 28px rgba(91, 155, 255, 0.07);
     transform: translateY(-1px);
   }
 }
@@ -52,12 +52,13 @@
 
 .balance {
   margin: 0;
-  font-size: 2rem;
-  font-weight: 700;
-  line-height: 1.12;
-  letter-spacing: -0.035em;
+  font-size: 2.625rem;
+  font-weight: 800;
+  line-height: 1.08;
+  letter-spacing: -0.04em;
   font-variant-numeric: tabular-nums;
   color: var(--ds-text-primary);
+  text-shadow: 0 0 40px rgba(91, 155, 255, 0.2);
 }
 
 .unit {

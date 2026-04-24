@@ -5,7 +5,10 @@
   min-height: 100dvh;
   min-height: 100vh;
   width: 100%;
-  background: var(--ds-surface-page);
+  background:
+    radial-gradient(ellipse 110% 340px at 50% -60px, rgba(91, 155, 255, 0.09) 0%, transparent 68%),
+    radial-gradient(ellipse 60% 200px at 80% 80%, rgba(91, 155, 255, 0.04) 0%, transparent 60%),
+    var(--ds-surface-page);
   color: var(--ds-text-primary);
 }
 

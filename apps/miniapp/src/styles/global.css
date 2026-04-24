@@ -1,20 +1,20 @@
 :root {
   color-scheme: dark;
-  /* Shell: near-black page + elevated charcoal cards (Telegram Mini App–style depth) */
-  --bg-base: #000000;
-  --bg-elevated: #1c1c1e;
-  --bg-card: #1c1c1e;
-  --bg-card-dense: #161618;
-  --border-subtle: rgba(255, 255, 255, 0.06);
-  --border-strong: rgba(77, 143, 255, 0.42);
-  --text-primary: #ffffff;
-  --text-secondary: #a8a8ae;
-  --text-muted: #8e8e93;
-  /* Accent: crisp but not neon — reads well on true black */
-  --accent-blue: #4d8fff;
-  --accent-blue-dim: rgba(77, 143, 255, 0.16);
+  /* Shell: deep navy-black page + elevated dark cards */
+  --bg-base: #07070c;
+  --bg-elevated: #12121a;
+  --bg-card: #12121a;
+  --bg-card-dense: #0c0c12;
+  --border-subtle: rgba(255, 255, 255, 0.09);
+  --border-strong: rgba(91, 155, 255, 0.45);
+  --text-primary: #f0f0f8;
+  --text-secondary: #a0a0b0;
+  --text-muted: #8888a0;
+  /* Accent: vibrant blue with energy */
+  --accent-blue: #5b9bff;
+  --accent-blue-dim: rgba(91, 155, 255, 0.18);
   --accent: var(--accent-blue);
-  --accent-dim: rgba(77, 143, 255, 0.22);
+  --accent-dim: rgba(91, 155, 255, 0.24);
   --profit: #0ecb81;
   --danger: #f87171;
   --badge-open: #ff9100;
@@ -43,16 +43,16 @@
   --ds-space-sm: 12px;
   --ds-space-md: 16px;
   --ds-space-lg: 28px;
-  --ds-surface-page: #000000;
-  --ds-surface-card: #1c1c1e;
-  --ds-border-default: rgba(255, 255, 255, 0.06);
-  --ds-border-accent: rgba(77, 143, 255, 0.24);
-  --ds-shadow-card: 0 0 0 1px rgba(255, 255, 255, 0.045),
-    0 1px 2px rgba(0, 0, 0, 0.2), 0 10px 32px rgba(0, 0, 0, 0.38),
-    inset 0 1px 0 rgba(255, 255, 255, 0.055);
-  --ds-shadow-card-hover: 0 0 0 1px rgba(255, 255, 255, 0.07),
-    0 4px 8px rgba(0, 0, 0, 0.28), 0 18px 48px rgba(0, 0, 0, 0.45),
-    inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  --ds-surface-page: #07070c;
+  --ds-surface-card: #12121a;
+  --ds-border-default: rgba(255, 255, 255, 0.09);
+  --ds-border-accent: rgba(91, 155, 255, 0.28);
+  --ds-shadow-card: 0 0 0 1px rgba(255, 255, 255, 0.055),
+    0 2px 4px rgba(0, 0, 0, 0.3), 0 12px 36px rgba(0, 0, 0, 0.48),
+    inset 0 1px 0 rgba(255, 255, 255, 0.065);
+  --ds-shadow-card-hover: 0 0 0 1px rgba(255, 255, 255, 0.09),
+    0 6px 12px rgba(0, 0, 0, 0.36), 0 22px 52px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.09);
   --ds-divider: rgba(255, 255, 255, 0.09);
   --ds-text-primary: #ffffff;
   --ds-text-secondary: #9a9aa3;
@@ -73,25 +73,25 @@
   /* Soft pill like TG mini-apps */
   --ds-btn-radius: 14px;
   /* Secondary / ghost actions */
-  --ds-btn-primary-bg: rgba(77, 143, 255, 0.16);
-  --ds-btn-primary-bg-hover: rgba(77, 143, 255, 0.26);
-  --ds-btn-primary-bg-active: rgba(77, 143, 255, 0.12);
-  --ds-btn-primary-border: rgba(77, 143, 255, 0.38);
-  --ds-btn-primary-border-hover: rgba(77, 143, 255, 0.52);
-  --ds-btn-primary-shadow: 0 2px 14px rgba(77, 143, 255, 0.12);
-  /* Solid primary CTA (Major-style: high-contrast accent) */
-  --ds-btn-solid-bg: #3d82f8;
-  --ds-btn-solid-bg-hover: #5290ff;
-  --ds-btn-solid-bg-active: #2f6fd6;
+  --ds-btn-primary-bg: rgba(91, 155, 255, 0.15);
+  --ds-btn-primary-bg-hover: rgba(91, 155, 255, 0.25);
+  --ds-btn-primary-bg-active: rgba(91, 155, 255, 0.11);
+  --ds-btn-primary-border: rgba(91, 155, 255, 0.4);
+  --ds-btn-primary-border-hover: rgba(91, 155, 255, 0.55);
+  --ds-btn-primary-shadow: 0 2px 14px rgba(91, 155, 255, 0.15);
+  /* Solid primary CTA */
+  --ds-btn-solid-bg: #4a8eff;
+  --ds-btn-solid-bg-hover: #5f9dff;
+  --ds-btn-solid-bg-active: #3678e8;
   --ds-btn-solid-text: #ffffff;
-  --ds-btn-solid-shadow: 0 4px 24px rgba(61, 130, 248, 0.42),
-    inset 0 1px 0 rgba(255, 255, 255, 0.14);
-  --ds-btn-solid-shadow-active: 0 2px 12px rgba(61, 130, 248, 0.28);
-  --ds-tab-bar-bg: rgba(28, 28, 30, 0.88);
-  --ds-tab-bar-blur: 28px;
-  --ds-tab-bar-border: rgba(255, 255, 255, 0.06);
-  --ds-tab-bar-shadow: 0 -8px 36px rgba(0, 0, 0, 0.42);
-  --ds-tab-active-bg: rgba(77, 143, 255, 0.12);
+  --ds-btn-solid-shadow: 0 4px 28px rgba(74, 142, 255, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  --ds-btn-solid-shadow-active: 0 2px 14px rgba(74, 142, 255, 0.32);
+  --ds-tab-bar-bg: rgba(12, 12, 18, 0.92);
+  --ds-tab-bar-blur: 32px;
+  --ds-tab-bar-border: rgba(255, 255, 255, 0.08);
+  --ds-tab-bar-shadow: 0 -1px 0 rgba(255,255,255,0.07), 0 -12px 40px rgba(0, 0, 0, 0.6);
+  --ds-tab-active-bg: rgba(91, 155, 255, 0.14);
   --ds-tab-radius: 12px;
 
   /* Dashboard aliases → design system (keep names for existing modules) */
@@ -162,4 +162,21 @@ a:hover {
 button,
 input {
   font: inherit;
+}
+
+/* ── Global animations (referenced by CSS Modules) ── */
+@keyframes dotPulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(14, 203, 129, 0.5);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 0 5px rgba(14, 203, 129, 0);
+    transform: scale(1.08);
+  }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position:  200% center; }
 }

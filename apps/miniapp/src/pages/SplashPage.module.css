@@ -7,24 +7,11 @@
   padding: max(var(--safe-top), 16px) max(var(--safe-right), 24px)
     max(var(--safe-bottom), 16px) max(var(--safe-left), 24px);
   overflow: hidden;
-  background: linear-gradient(
-      145deg,
-      #0e1f3d 0%,
-      #0a1528 28%,
-      #060a14 72%,
-      #030508 100%
-    ),
-    radial-gradient(
-      100% 70% at 0% 0%,
-      rgba(67, 198, 225, 0.12),
-      transparent 55%
-    ),
-    radial-gradient(
-      90% 60% at 100% 100%,
-      rgba(25, 59, 177, 0.22),
-      transparent 50%
-    ),
-    #030508;
+  background:
+    radial-gradient(ellipse 90% 50% at 50% 0%, rgba(91, 155, 255, 0.22) 0%, transparent 65%),
+    radial-gradient(ellipse 60% 40% at 15% 30%, rgba(67, 198, 225, 0.1) 0%, transparent 55%),
+    radial-gradient(ellipse 70% 45% at 90% 75%, rgba(91, 100, 255, 0.15) 0%, transparent 55%),
+    linear-gradient(165deg, #0c1628 0%, #07070c 45%, #030508 100%);
 }
 
 .vignette {
@@ -34,7 +21,7 @@
   background: radial-gradient(
     65% 55% at 50% 50%,
     transparent 0%,
-    rgba(0, 0, 0, 0.35) 100%
+    rgba(0, 0, 0, 0.45) 100%
   );
 }
 

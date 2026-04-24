@@ -29,7 +29,7 @@ export function SubscriptionCard() {
       className={styles.section}
       aria-label={isActive ? "Copy trading access" : "No active subscription"}
     >
-      <div className={styles.panel}>
+      <div className={`${styles.panel}${!isActive ? ` ${styles.panelInactive}` : ''}`}>
         <div className={styles.body}>
           {isActive ? (
             <>

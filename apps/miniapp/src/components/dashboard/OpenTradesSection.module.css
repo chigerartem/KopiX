@@ -101,28 +101,28 @@
   border-radius: var(--ds-radius-card);
   background: linear-gradient(
     160deg,
-    rgba(255, 255, 255, 0.045) 0%,
-    var(--ds-surface-card) 40%,
-    #18181c 100%
+    rgba(91, 155, 255, 0.07) 0%,
+    var(--ds-surface-card) 38%,
+    #0f0f16 100%
   );
-  border: 1px solid var(--ds-border-default);
+  border: 1px solid rgba(91, 155, 255, 0.13);
   box-shadow: var(--ds-shadow-card);
   transition: border-color 0.22s ease, box-shadow 0.22s ease;
 }
 
 @media (hover: hover) {
   .slideCard:hover {
-    border-color: var(--ds-border-accent);
-    box-shadow: var(--ds-shadow-card-hover);
+    border-color: rgba(91, 155, 255, 0.3);
+    box-shadow: var(--ds-shadow-card-hover), 0 0 24px rgba(91, 155, 255, 0.06);
   }
 }
 
 .slideCardPlaceholder {
   background: linear-gradient(
     160deg,
-    rgba(255, 255, 255, 0.03) 0%,
-    rgba(28, 28, 30, 0.84) 40%,
-    rgba(22, 22, 24, 0.9) 100%
+    rgba(255, 255, 255, 0.025) 0%,
+    var(--ds-surface-card) 42%,
+    #0f0f16 100%
   );
   border-color: rgba(255, 255, 255, 0.07);
 }
@@ -299,6 +299,6 @@
 
 .indicatorActive {
   background: var(--accent-blue);
-  transform: scale(1.15);
-  box-shadow: 0 0 10px rgba(77, 143, 255, 0.32);
+  transform: scale(1.25);
+  box-shadow: 0 0 10px rgba(91, 155, 255, 0.45);
 }

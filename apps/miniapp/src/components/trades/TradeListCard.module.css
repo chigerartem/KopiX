@@ -9,28 +9,29 @@
   padding: 16px 18px 14px;
   background: linear-gradient(
     165deg,
-    rgba(255, 255, 255, 0.035) 0%,
-    rgba(28, 28, 30, 0.92) 42%,
-    rgba(22, 22, 24, 0.98) 100%
+    rgba(91, 155, 255, 0.055) 0%,
+    var(--ds-surface-card) 38%,
+    #0f0f16 100%
   );
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset,
-    0 12px 32px rgba(0, 0, 0, 0.28);
-  transition: box-shadow 0.22s ease, transform 0.22s ease;
+  border: 1px solid var(--ds-border-default);
+  box-shadow: var(--ds-shadow-card);
+  transition: box-shadow 0.22s ease, transform 0.22s ease, border-color 0.22s ease;
 }
 
 .cardPlaceholder {
   background: linear-gradient(
     165deg,
-    rgba(255, 255, 255, 0.028) 0%,
-    rgba(28, 28, 30, 0.82) 42%,
-    rgba(22, 22, 24, 0.88) 100%
+    rgba(255, 255, 255, 0.025) 0%,
+    var(--ds-surface-card) 42%,
+    #0f0f16 100%
   );
+  border-color: rgba(255, 255, 255, 0.06);
 }
 
 @media (hover: hover) {
   .card:hover {
-    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06) inset,
-      0 16px 40px rgba(0, 0, 0, 0.32);
+    border-color: var(--ds-border-accent);
+    box-shadow: var(--ds-shadow-card-hover);
     transform: translateY(-1px);
   }
 }

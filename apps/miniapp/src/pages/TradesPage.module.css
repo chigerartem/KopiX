@@ -5,7 +5,9 @@
   min-height: 100dvh;
   min-height: 100vh;
   width: 100%;
-  background: var(--ds-surface-page);
+  background:
+    radial-gradient(ellipse 90% 260px at 50% -40px, rgba(91, 155, 255, 0.07) 0%, transparent 65%),
+    var(--ds-surface-page);
   color: var(--ds-text-primary);
 }
 
@@ -39,17 +41,17 @@
   margin-bottom: 24px;
   box-sizing: border-box;
   border-radius: 12px;
-  border: none;
-  background: rgba(255, 255, 255, 0.04);
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06) inset;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.035);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.05) inset;
   cursor: text;
-  transition: background 0.2s ease, box-shadow 0.2s ease;
+  transition: background 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
 .searchField:focus-within {
-  background: rgba(255, 255, 255, 0.055);
-  box-shadow: 0 1px 0 rgba(77, 143, 255, 0.22) inset,
-    0 0 0 1px rgba(77, 143, 255, 0.12);
+  background: rgba(91, 155, 255, 0.06);
+  border-color: rgba(91, 155, 255, 0.25);
+  box-shadow: 0 0 0 3px rgba(91, 155, 255, 0.08);
 }
 
 .searchIconWrap {

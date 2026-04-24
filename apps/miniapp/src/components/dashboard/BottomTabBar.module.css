@@ -51,6 +51,7 @@
 .tabActive {
   color: var(--accent-blue);
   background: var(--ds-tab-active-bg);
+  box-shadow: 0 -2px 0 var(--accent-blue) inset, 0 0 16px rgba(91, 155, 255, 0.12) inset;
 }
 
 .tab:active {
