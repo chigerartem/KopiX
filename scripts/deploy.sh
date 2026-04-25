@@ -36,6 +36,9 @@ npm run build
 echo "[deploy] running database migrations..."
 npm run db:migrate
 
+echo "[deploy] seeding database (idempotent)..."
+npm run db:seed
+
 # Persist COMMIT_SHA so pm2 reload --update-env picks it up. pm2 reads env from
 # the shell that invokes it, so exporting above is enough for this run; we also
 # append it to .env so an out-of-band `pm2 restart` still has it.
