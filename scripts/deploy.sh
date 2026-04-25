@@ -59,5 +59,8 @@ fi
 echo "[deploy] re-registering Telegram webhook (idempotent)..."
 node --env-file=.env --import tsx scripts/register-webhook.ts
 
+echo "[deploy] re-registering CryptoBot webhook (idempotent)..."
+node --env-file=.env --import tsx/esm scripts/register-cryptobot-webhook.ts
+
 echo "[deploy] done. Commit $COMMIT_SHA is live."
 pm2 ls
