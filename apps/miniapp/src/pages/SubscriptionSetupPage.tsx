@@ -1,17 +1,16 @@
 /**
- * /subscription/setup — pick a plan, open CryptoBot invoice in Telegram.
+ * /subscription/setup — show the plan, open CryptoBot invoice.
  *
  * Flow:
- *   1. GET /api/plans → list of active plans.
- *   2. POST /api/subscriptions/create-invoice {planId} → {invoiceId, botInvoiceUrl}.
- *   3. tg.openLink(botInvoiceUrl) → opens @CryptoBot chat with the invoice.
- *   4. Backend webhook activates the subscription on payment.
- *   5. User taps "Refresh status" → useSubscriber.refresh() picks up the new
- *      subscription row and the page navigates back to dashboard if active.
+ *   1. GET /api/plans → list active plans.
+ *   2. User taps "Pay with CryptoBot".
+ *   3. POST /api/subscriptions/create-invoice {planId} → {botInvoiceUrl}.
+ *   4. tg.openLink(botInvoiceUrl) → opens @CryptoBot invoice.
+ *   5. Backend webhook activates subscription; user taps "Refresh" to proceed.
  */
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { AlertTriangle, ExternalLink, RefreshCw } from "lucide-react";
+import { AlertTriangle, Check, RefreshCw, Zap } from "lucide-react";
 import { SubPageHeader } from "@/components/layout/SubPageHeader";
 import { useSubscriber } from "@/contexts/SubscriberContext";
 import {
@@ -21,6 +20,13 @@ import {
 } from "@/services/api";
 import { openLink } from "@/services/telegram";
 import styles from "./SubscriptionSetupPage.module.css";
+
+const PLAN_FEATURES = [
+  "Auto-copy master trades in real time",
+  "Fixed or percentage position sizing",
+  "Pause & resume anytime",
+  "Trade notifications in Telegram",
+];
 
 export function SubscriptionSetupPage() {
   const navigate = useNavigate();
@@ -43,33 +49,25 @@ export function SubscriptionSetupPage() {
         setPlans(list);
         if (list.length > 0) setSelectedPlanId(list[0].id);
       } catch (err) {
-        if (!cancelled) {
+        if (!cancelled)
           setError(err instanceof Error ? err.message : "Failed to load plans");
-        }
       } finally {
         if (!cancelled) setPlansLoading(false);
       }
     })();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, []);
 
-  // Auto-advance once the subscription becomes active after a payment.
-  // We only run this after the user has actually opened the invoice
-  // (`pending`), so someone who already has an active subscription and
-  // just wandered onto this page isn't yanked off immediately.
-  //
-  // Where we land depends on the rest of the onboarding state:
-  //   - first-time setup → /api-keys/add (next required step)
-  //   - renewal of a fully configured account → /dashboard
+  // Auto-advance once subscription becomes active after payment.
   useEffect(() => {
     if (!pending) return;
     if (me?.subscription?.status !== "active") return;
     if (step === "api_key") navigate("/api-keys/add", { replace: true });
     else if (step === "copy_settings") navigate("/copy-settings", { replace: true });
-    else if (step === "done") navigate("/dashboard", { replace: true });
+    else navigate("/dashboard", { replace: true });
   }, [pending, me?.subscription?.status, step, navigate]);
+
+  const selectedPlan = plans.find((p) => p.id === selectedPlanId) ?? null;
 
   async function handlePay() {
     if (!selectedPlanId || busy) return;
@@ -77,9 +75,7 @@ export function SubscriptionSetupPage() {
     setError(null);
     try {
       const invoice = await createSubscriptionInvoice(selectedPlanId);
-      if (!invoice.botInvoiceUrl) {
-        throw new Error("Invoice URL missing");
-      }
+      if (!invoice.botInvoiceUrl) throw new Error("Invoice URL missing");
       openLink(invoice.botInvoiceUrl);
       setPending(true);
     } catch (err) {
@@ -105,75 +101,106 @@ export function SubscriptionSetupPage() {
         <SubPageHeader title="Subscribe" />
 
         {plansLoading ? (
-          <div className={styles.placeholder}>Loading plans…</div>
+          <div className={styles.placeholder}>Loading…</div>
         ) : plans.length === 0 ? (
           <div className={styles.placeholder}>No plans available right now.</div>
         ) : (
           <>
-            <p className={styles.intro}>
-              Pick a plan and pay with CryptoBot in USDT. Your subscription activates
-              automatically once the payment is confirmed.
-            </p>
-
-            <div className={styles.plans} role="radiogroup">
+            {/* Plan cards */}
+            <div className={styles.plans}>
               {plans.map((plan) => {
                 const active = plan.id === selectedPlanId;
+                const perDay = plan.durationDays > 0
+                  ? (plan.priceUsdt / plan.durationDays).toFixed(2)
+                  : null;
                 return (
                   <button
                     key={plan.id}
                     type="button"
                     role="radio"
                     aria-checked={active}
-                    className={`${styles.plan} ${active ? styles.planActive : ""}`}
+                    className={`${styles.planCard} ${active ? styles.planCardActive : ""}`}
                     onClick={() => setSelectedPlanId(plan.id)}
                     disabled={busy}
                   >
-                    <div className={styles.planMain}>
-                      <p className={styles.planName}>{plan.name}</p>
-                      <p className={styles.planDuration}>
-                        {plan.durationDays} day{plan.durationDays === 1 ? "" : "s"}
-                      </p>
+                    {/* Header row */}
+                    <div className={styles.planHeader}>
+                      <div className={styles.planMeta}>
+                        <span className={styles.planName}>{plan.name}</span>
+                        <span className={styles.planDuration}>
+                          {plan.durationDays} days
+                        </span>
+                      </div>
+                      <div className={styles.planPricing}>
+                        <span className={styles.planPrice}>
+                          {plan.priceUsdt.toFixed(2)}
+                          <span className={styles.planCurrency}> USDT</span>
+                        </span>
+                        {perDay && (
+                          <span className={styles.planPerDay}>
+                            ~{perDay} / day
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    <span className={styles.planPrice}>
-                      {plan.priceUsdt.toFixed(2)} USDT
-                    </span>
+
+                    {/* Features — only show on the selected card */}
+                    {active && (
+                      <ul className={styles.features}>
+                        {PLAN_FEATURES.map((f) => (
+                          <li key={f} className={styles.feature}>
+                            <Check size={13} className={styles.featureIcon} aria-hidden />
+                            {f}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </button>
                 );
               })}
             </div>
 
+            {/* Pending notice */}
             {pending && (
-              <p className={styles.notice}>
+              <div className={styles.notice}>
                 Invoice opened in CryptoBot. After payment is confirmed, tap{" "}
-                <b>Refresh status</b> below — the subscription activates automatically.
-              </p>
+                <b>Refresh</b> — your subscription activates automatically.
+              </div>
             )}
 
+            {/* Error */}
             {error && (
               <div className={styles.error} role="alert">
-                <AlertTriangle size={16} aria-hidden />
+                <AlertTriangle size={15} aria-hidden />
                 <span>{error}</span>
               </div>
             )}
 
+            {/* CTA */}
             <button
               type="button"
-              className={styles.primaryBtn}
+              className={styles.payBtn}
               onClick={handlePay}
-              disabled={!selectedPlanId || busy}
+              disabled={!selectedPlan || busy}
             >
-              <ExternalLink size={18} aria-hidden />
-              <span>{busy ? "Opening…" : "Pay with CryptoBot"}</span>
+              <Zap size={17} aria-hidden />
+              <span>
+                {busy
+                  ? "Opening…"
+                  : selectedPlan
+                  ? `Pay ${selectedPlan.priceUsdt.toFixed(2)} USDT with CryptoBot`
+                  : "Pay with CryptoBot"}
+              </span>
             </button>
 
             {pending && (
               <button
                 type="button"
-                className={styles.secondaryBtn}
+                className={styles.refreshBtn}
                 onClick={handleRefresh}
                 disabled={refreshing}
               >
-                <RefreshCw size={16} aria-hidden />
+                <RefreshCw size={15} aria-hidden />
                 <span>{refreshing ? "Checking…" : "Refresh status"}</span>
               </button>
             )}

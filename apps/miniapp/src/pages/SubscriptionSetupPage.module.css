@@ -23,18 +23,13 @@
 }
 
 .placeholder {
-  padding: var(--ds-space-md);
+  padding: 40px var(--ds-space-md);
   text-align: center;
   color: var(--ds-text-secondary);
   font-size: var(--ds-font-body);
 }
 
-.intro {
-  margin: 0;
-  font-size: var(--ds-font-body);
-  line-height: var(--ds-line-height-body);
-  color: var(--ds-text-secondary);
-}
+/* ── Plan cards ─────────────────────────────────────────────────────────── */
 
 .plans {
   display: flex;
@@ -42,65 +37,124 @@
   gap: 10px;
 }
 
-.plan {
+.planCard {
   position: relative;
   display: flex;
-  align-items: center;
-  gap: var(--ds-space-sm);
-  padding: 14px 16px;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  padding: 18px 18px 16px;
   border-radius: var(--ds-radius-card);
   background: var(--ds-surface-card);
   border: 1px solid var(--ds-border-default);
   cursor: pointer;
   text-align: left;
   color: inherit;
-  transition: border-color 0.2s ease, background 0.2s ease, transform 0.12s ease;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.12s ease;
 }
 
-.plan:hover {
-  border-color: rgba(91, 155, 255, 0.32);
+.planCard:hover {
+  border-color: rgba(91, 155, 255, 0.3);
 }
 
-.plan:active {
+.planCard:active {
   transform: scale(0.995);
 }
 
-.planActive {
+.planCardActive {
   border-color: rgba(91, 155, 255, 0.55);
   background: linear-gradient(
     158deg,
     rgba(91, 155, 255, 0.1) 0%,
-    var(--ds-surface-card) 60%,
+    var(--ds-surface-card) 55%,
     #0f0f16 100%
   );
-  box-shadow: 0 0 0 3px rgba(91, 155, 255, 0.12);
+  box-shadow: 0 0 0 3px rgba(91, 155, 255, 0.1), 0 8px 32px rgba(91, 155, 255, 0.08);
 }
 
-.planMain {
-  flex: 1 1 auto;
-  min-width: 0;
+/* ── Plan header ──────────────────────────────────────────────────────────── */
+
+.planHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.planMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
 }
 
 .planName {
-  margin: 0;
   font-size: 1rem;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--ds-text-primary);
+  letter-spacing: -0.01em;
 }
 
 .planDuration {
-  margin: 2px 0 0;
-  font-size: 0.8125rem;
+  font-size: 0.8rem;
   color: var(--ds-text-secondary);
 }
 
+.planPricing {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
 .planPrice {
-  flex-shrink: 0;
-  font-size: 1.0625rem;
-  font-weight: 700;
+  font-size: 1.5rem;
+  font-weight: 800;
   font-family: var(--font-mono);
   color: var(--ds-text-primary);
+  line-height: 1;
+  letter-spacing: -0.02em;
 }
+
+.planCurrency {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--ds-text-secondary);
+}
+
+.planPerDay {
+  font-size: 0.75rem;
+  color: var(--ds-text-secondary);
+  font-family: var(--font-mono);
+}
+
+/* ── Features list ──────────────────────────────────────────────────────── */
+
+.features {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  border-top: 1px solid var(--ds-border-default);
+  padding-top: 14px;
+}
+
+.feature {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8125rem;
+  color: var(--ds-text-secondary);
+  line-height: 1.4;
+}
+
+.featureIcon {
+  flex-shrink: 0;
+  color: var(--profit);
+}
+
+/* ── Notice / error ─────────────────────────────────────────────────────── */
 
 .notice {
   margin: 0;
@@ -131,7 +185,9 @@
   margin-top: 2px;
 }
 
-.primaryBtn {
+/* ── Buttons ────────────────────────────────────────────────────────────── */
+
+.payBtn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -146,27 +202,27 @@
   color: var(--ds-btn-solid-text);
   font-size: var(--ds-btn-font-size);
   font-weight: var(--ds-btn-font-weight);
-  letter-spacing: 0.02em;
+  letter-spacing: 0.01em;
   cursor: pointer;
   box-shadow: var(--ds-btn-solid-shadow);
   transition: background 0.2s ease, transform 0.12s ease;
 }
 
-.primaryBtn:hover:not(:disabled) {
+.payBtn:hover:not(:disabled) {
   background: var(--ds-btn-solid-bg-hover);
 }
 
-.primaryBtn:active:not(:disabled) {
+.payBtn:active:not(:disabled) {
   background: var(--ds-btn-solid-bg-active);
   transform: scale(0.99);
 }
 
-.primaryBtn:disabled {
-  opacity: 0.5;
+.payBtn:disabled {
+  opacity: 0.45;
   cursor: not-allowed;
 }
 
-.secondaryBtn {
+.refreshBtn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -184,11 +240,11 @@
   transition: background 0.2s ease, border-color 0.2s ease;
 }
 
-.secondaryBtn:hover:not(:disabled) {
+.refreshBtn:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.08);
 }
 
-.secondaryBtn:disabled {
+.refreshBtn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
