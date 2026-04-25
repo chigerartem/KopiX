@@ -8,7 +8,7 @@ import { requireTmaAuth } from "../middleware/auth.js";
 const prisma = createPrismaClient();
 
 const CreateInvoiceBody = z.object({
-  planId: z.string().uuid(),
+  planId: z.string().min(1),
 });
 
 export async function subscriptionRoutes(app: FastifyInstance): Promise<void> {
@@ -53,7 +53,9 @@ export async function subscriptionRoutes(app: FastifyInstance): Promise<void> {
         where: { id: request.subscriberId },
       });
 
-      const domain = process.env["APP_DOMAIN"] ?? "localhost";
+      const miniAppUrl =
+        process.env["MINIAPP_URL"]?.replace(/\/$/, "") ??
+        "https://t.me/KopiX_Official_Bot";
       const nonce = randomBytes(8).toString("hex");
       const payload = `${subscriber.id}:${plan.id}:${nonce}`;
 
@@ -64,7 +66,7 @@ export async function subscriptionRoutes(app: FastifyInstance): Promise<void> {
           amount: plan.price.toString(),
           description: `KopiX Subscription — ${plan.name}`,
           payload,
-          paidBtnUrl: `https://${domain}/payment-success`,
+          paidBtnUrl: miniAppUrl,
         });
       } catch (err) {
         request.log.error(
