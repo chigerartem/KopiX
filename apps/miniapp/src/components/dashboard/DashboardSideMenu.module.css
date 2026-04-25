@@ -60,7 +60,10 @@
 }
 
 .item {
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
   box-sizing: border-box;
   width: 100%;
   padding: var(--ds-space-sm) var(--ds-space-md);
@@ -75,6 +78,16 @@
   color: var(--ds-text-primary);
   cursor: pointer;
   transition: background 0.2s ease, color 0.2s ease;
+}
+
+.item[data-locked="true"] {
+  color: var(--ds-text-secondary);
+  opacity: 0.65;
+}
+
+.lockIcon {
+  flex-shrink: 0;
+  color: var(--ds-text-secondary);
 }
 
 a.item {

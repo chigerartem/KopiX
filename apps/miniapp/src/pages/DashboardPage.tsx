@@ -1,18 +1,23 @@
 /**
- * Main home screen: header, balance, subscription status, trades carousel, bottom tabs.
+ * Main home screen.
  *
- * Read-only dashboard — API key connection, copy settings, and subscription
- * purchase are all managed in the Telegram bot (/connect, /mode, /subscribe).
+ * Until the subscriber finishes onboarding (subscribe → connect BingX → set
+ * copy mode), the dashboard hides balance/positions and shows a single
+ * guided "Step N of 3" card with a CTA pointing at the next required
+ * screen. Once `step === "done"`, the regular widgets render and we start
+ * polling exchange data.
  */
 import { useCallback, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAppState } from "@/contexts/AppStateContext";
+import { useSubscriber } from "@/contexts/SubscriberContext";
 import { useActivePageRefresh } from "@/hooks/useActivePageRefresh";
 import { BalanceCard, type BalanceCardStats } from "@/components/dashboard/BalanceCard";
 import { BottomTabBar, type TabId } from "@/components/dashboard/BottomTabBar";
 import { SubscriptionCard } from "@/components/dashboard/SubscriptionCard";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { DashboardSideMenu } from "@/components/dashboard/DashboardSideMenu";
+import { OnboardingCard } from "@/components/dashboard/OnboardingCard";
 import { OpenTradesSection } from "@/components/dashboard/OpenTradesSection";
 import {
   getBalance,
@@ -34,10 +39,26 @@ export function DashboardPage() {
     setTradesOpen,
     refreshSubscriptionStatus,
   } = useAppState();
+  const { step, refresh: refreshSubscriber } = useSubscriber();
   const [tab, setTab] = useState<TabId>("home");
   const [menuOpen, setMenuOpen] = useState(false);
 
+  const onboardingComplete = step === "done";
+
   const refreshDashboardData = useCallback(async () => {
+    // Always pick up the latest subscriber profile so `step` advances after
+    // the user returns from a CryptoBot payment / API key add.
+    await refreshSubscriber();
+
+    // Skip exchange-data calls until the user has actually connected a key
+    // and finished setup — otherwise we'd hammer endpoints that just return 0.
+    if (step !== "done") {
+      const subStatus = await refreshSubscriptionStatus();
+      setSubscriptionStatus(subStatus.state);
+      setSubscriptionValidUntil(subStatus.activeTo);
+      return;
+    }
+
     const [balance, pnlHistory, positions, subStatus] = await Promise.all([
       getBalance(),
       getSwapPnlHistory(),
@@ -62,6 +83,8 @@ export function DashboardPage() {
     setSubscriptionStatus(subStatus.state);
     setSubscriptionValidUntil(subStatus.activeTo);
   }, [
+    step,
+    refreshSubscriber,
     setDashboardBalanceStats,
     setDashboardOpenTrades,
     setTradesOpen,
@@ -87,17 +110,21 @@ export function DashboardPage() {
         <DashboardHeader onMenuClick={() => setMenuOpen(true)} />
 
         <div className={styles.stack}>
-          <BalanceCard stats={dashboardBalanceStats as Partial<BalanceCardStats>} />
-
-          <SubscriptionCard />
-
-          <OpenTradesSection
-            trades={dashboardOpenTrades as OpenTradePosition[]}
-            onManageClick={() => {
-              setTab("trades");
-              navigate("/trades");
-            }}
-          />
+          {onboardingComplete ? (
+            <>
+              <BalanceCard stats={dashboardBalanceStats as Partial<BalanceCardStats>} />
+              <SubscriptionCard />
+              <OpenTradesSection
+                trades={dashboardOpenTrades as OpenTradePosition[]}
+                onManageClick={() => {
+                  setTab("trades");
+                  navigate("/trades");
+                }}
+              />
+            </>
+          ) : (
+            <OnboardingCard step={step} />
+          )}
         </div>
       </div>
 

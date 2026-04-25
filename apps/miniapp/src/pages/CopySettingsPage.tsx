@@ -6,9 +6,11 @@
  *   - mode=percentage requires 0 < percentage <= 100
  *   - resume requires connected API keys + an active subscription
  */
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useNavigate } from "react-router-dom";
 import { AlertTriangle } from "lucide-react";
 import { SubPageHeader } from "@/components/layout/SubPageHeader";
+import { PrerequisiteNotice } from "@/components/onboarding/PrerequisiteNotice";
 import { useSubscriber } from "@/contexts/SubscriberContext";
 import { patchSubscriberMe } from "@/services/api";
 import styles from "./CopySettingsPage.module.css";
@@ -16,7 +18,13 @@ import styles from "./CopySettingsPage.module.css";
 type Mode = "fixed" | "percentage";
 
 export function CopySettingsPage() {
-  const { me, loading, refresh } = useSubscriber();
+  const navigate = useNavigate();
+  const { me, loading, refresh, step } = useSubscriber();
+  // Capture the onboarding step at mount: if the user landed here from
+  // /api-keys/add (step === "copy_settings"), the first successful save
+  // completes onboarding and we should bounce them to the dashboard.
+  // If they're editing an existing config (step === "done"), stay put.
+  const arrivedDuringOnboarding = useRef(step === "copy_settings");
 
   const [mode, setMode] = useState<Mode>("fixed");
   const [fixedAmount, setFixedAmount] = useState<string>("");
@@ -71,6 +79,12 @@ export function CopySettingsPage() {
     try {
       await patchSubscriberMe(patch);
       await refresh();
+      // First-time configuration completes onboarding — push the user to
+      // the dashboard so they see the now-unlocked widgets right away.
+      if (arrivedDuringOnboarding.current) {
+        arrivedDuringOnboarding.current = false;
+        navigate("/dashboard", { replace: true });
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save settings");
     } finally {
@@ -98,6 +112,9 @@ export function CopySettingsPage() {
     status === "active" ? "Pause" : status === "paused" ? "Resume" : "—";
   const toggleDisabled = !me || toggleBusy || status === "inactive";
 
+  const hasSub = !!me && me.subscription?.status === "active";
+  const hasKey = !!me?.hasExchangeConnected;
+
   return (
     <div className={styles.page}>
       <div className={styles.inner}>
@@ -105,6 +122,20 @@ export function CopySettingsPage() {
 
         {loading && !me ? (
           <div className={styles.placeholder}>Loading…</div>
+        ) : !hasSub ? (
+          <PrerequisiteNotice
+            title="Subscription required"
+            body="Activate your KopiX subscription before configuring copy settings."
+            cta="Subscribe"
+            to="/subscription/setup"
+          />
+        ) : !hasKey ? (
+          <PrerequisiteNotice
+            title="Connect BingX first"
+            body="Add a trade-only BingX API key before choosing how trades should be sized on your account."
+            cta="Add API key"
+            to="/api-keys/add"
+          />
         ) : (
           <form className={styles.form} onSubmit={handleSubmit}>
             <div className={styles.section}>

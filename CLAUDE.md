@@ -79,10 +79,11 @@ infra/k8s       → Kubernetes manifests (single-namespace alternative)
 - `docker compose -f infra/compose/docker-compose.data.yml logs -f redis` — tail redis
 
 ### Deploy to VPS (pm2 + Caddy)
-- `bash scripts/deploy.sh` — git pull + `npm ci` + build + `prisma migrate deploy` + `pm2 reload all`
+- `bash scripts/deploy.sh` — git pull + `npm ci` + build + `prisma migrate deploy` + `pm2 reload ecosystem.config.cjs --update-env`
 - `pm2 logs <kopix-api|kopix-bot|kopix-engine>` — tail a service
 - `pm2 restart kopix-engine` — restart a single service (engine is a singleton — do **not** scale)
 - `pm2 reload kopix-api` — zero-downtime reload of the API
+- `pm2 reload ecosystem.config.cjs --update-env` — reload all services and pick up `.env` changes (e.g. `COMMIT_SHA`)
 - Caddy serves the miniapp static build and reverse-proxies the API + bot webhook on the host
 
 ### Telegram webhook

@@ -55,12 +55,16 @@ export function SubscriptionSetupPage() {
     };
   }, []);
 
-  // Auto-leave once the subscription becomes active.
+  // Auto-advance to Step 2 once the subscription becomes active. We only
+  // do this after the user has actually opened the invoice (`pending`),
+  // so a user who already has an active subscription and just wandered
+  // onto this page doesn't get yanked off immediately.
   useEffect(() => {
+    if (!pending) return;
     if (me?.subscription?.status === "active") {
-      navigate("/dashboard", { replace: true });
+      navigate("/api-keys/add", { replace: true });
     }
-  }, [me?.subscription?.status, navigate]);
+  }, [pending, me?.subscription?.status, navigate]);
 
   async function handlePay() {
     if (!selectedPlanId || busy) return;

@@ -9,6 +9,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { KeyRound, Plus, Trash2 } from "lucide-react";
 import { SubPageHeader } from "@/components/layout/SubPageHeader";
+import { PrerequisiteNotice } from "@/components/onboarding/PrerequisiteNotice";
 import { useSubscriber } from "@/contexts/SubscriberContext";
 import { deleteExchangeCredentials } from "@/services/api";
 import styles from "./ApiKeysPage.module.css";
@@ -20,6 +21,7 @@ export function ApiKeysPage() {
   const [error, setError] = useState<string | null>(null);
 
   const connected = !!me?.hasExchangeConnected;
+  const hasSub = !!me && me.subscription?.status === "active";
 
   async function handleDisconnect() {
     if (!window.confirm("Disconnect your BingX API key? Copy trading will pause.")) return;
@@ -40,8 +42,15 @@ export function ApiKeysPage() {
       <div className={styles.inner}>
         <SubPageHeader title="API keys" />
 
-        {loading ? (
+        {loading && !me ? (
           <div className={styles.placeholder}>Loading…</div>
+        ) : !hasSub ? (
+          <PrerequisiteNotice
+            title="Subscription required"
+            body="Activate your KopiX subscription before connecting a BingX API key — copying only runs while a plan is active."
+            cta="Subscribe"
+            to="/subscription/setup"
+          />
         ) : connected ? (
           <section className={styles.card} aria-label="Connected BingX key">
             <div className={styles.cardHead}>

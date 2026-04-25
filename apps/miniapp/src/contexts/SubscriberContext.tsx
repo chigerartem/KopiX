@@ -18,10 +18,50 @@ import {
 } from "react";
 import { getSubscriberMe, type SubscriberMe } from "@/services/api";
 
+/**
+ * Onboarding step derived from `me`.
+ *
+ * The product imposes a strict order: subscribe → connect BingX → set copy
+ * mode → done. Pages use `step` to gate access (show prerequisite notices
+ * instead of forms) and the dashboard uses it to render a guided
+ * "Step N/3" card until the flow is complete.
+ */
+export type OnboardingStep =
+  | "subscribe"
+  | "api_key"
+  | "copy_settings"
+  | "done";
+
+export const ONBOARDING_TOTAL = 3;
+
+export function stepIndex(step: OnboardingStep): number {
+  switch (step) {
+    case "subscribe":
+      return 1;
+    case "api_key":
+      return 2;
+    case "copy_settings":
+      return 3;
+    case "done":
+      return 3;
+  }
+}
+
+function deriveStep(me: SubscriberMe | null): OnboardingStep {
+  if (!me) return "subscribe";
+  if (!me.subscription || me.subscription.status !== "active") return "subscribe";
+  if (!me.hasExchangeConnected) return "api_key";
+  const fixedSet = me.copyMode === "fixed" && (me.fixedAmount ?? 0) > 0;
+  const pctSet = me.copyMode === "percentage" && (me.percentage ?? 0) > 0;
+  if (!fixedSet && !pctSet) return "copy_settings";
+  return "done";
+}
+
 type SubscriberContextValue = {
   me: SubscriberMe | null;
   loading: boolean;
   error: string | null;
+  step: OnboardingStep;
   refresh: () => Promise<void>;
 };
 
@@ -57,7 +97,7 @@ export function SubscriberProvider({ children }: { children: ReactNode }) {
   }, [refresh]);
 
   const value = useMemo(
-    () => ({ me, loading, error, refresh }),
+    () => ({ me, loading, error, step: deriveStep(me), refresh }),
     [me, loading, error, refresh],
   );
 
