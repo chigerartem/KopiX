@@ -15,6 +15,7 @@ import { createBot } from "./bot.js";
 import { buildServer } from "./server.js";
 import { logger } from "./logger.js";
 import { startExpiryNotifications } from "./notifications/expiry.js";
+import { startTradeNotifier } from "./services/tradeNotifier.js";
 
 async function main(): Promise<void> {
   const token = process.env["TELEGRAM_BOT_TOKEN"];
@@ -43,6 +44,15 @@ async function main(): Promise<void> {
   );
 
   startExpiryNotifications(bot);
+
+  try {
+    await startTradeNotifier(bot);
+  } catch (err: unknown) {
+    logger.error(
+      { event: "bot.trade_notifier_failed", err: String(err) },
+      "Failed to start trade notifier",
+    );
+  }
 
   const shutdown = async (): Promise<void> => {
     logger.info({ event: "bot.shutdown" }, "Shutting down bot");

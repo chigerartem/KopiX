@@ -4,16 +4,15 @@
  * Auth: `Authorization: TMA <Telegram.WebApp.initData>`
  *   Middleware lives in apps/api/src/middleware/auth.ts.
  *
- * The miniapp is a read-only dashboard:
- *   - Balance, open positions, closed trades, PnL history
- *   - Subscription status (read-only)
+ * The miniapp owns ALL interactive flows:
+ *   - Dashboard (balance, positions, closed trades, PnL history)
+ *   - API key connection (validate + delete)
+ *   - Copy settings (mode, sizing, pause/resume)
+ *   - Subscription purchase (CryptoBot invoice)
  *
- * API key connection   → /connect in the bot
- * Copy settings        → /mode in the bot
- * Subscription purchase → /subscribe in the bot
+ * The bot is read-only — it shows app description and pushes trade notifications.
  */
 import type { OpenTradePosition } from "@/types/trade";
-import type { SubscriptionStatus } from "@/types/app";
 import { getTelegramWebApp } from "@/services/telegram";
 
 const BASE_URL = (
@@ -199,33 +198,165 @@ export async function getSwapPnlHistory(): Promise<SwapIncomePoint[]> {
   }));
 }
 
-// ── subscription status (read-only) ──────────────────────────────────────────
+// ── subscriber profile (single source of truth for settings + status) ───────
 
-type SubscriberMeResponse = {
+export type SubscriberMe = {
+  id: string;
+  telegramId: string;
+  telegramUsername: string | null;
+  copyMode: "fixed" | "percentage";
+  fixedAmount: number | null;
+  percentage: number | null;
+  maxPositionUsdt: number | null;
+  status: "active" | "inactive" | "paused";
+  hasExchangeConnected: boolean;
   subscription: {
+    id: string;
     status: string;
+    startedAt: string;
     expiresAt: string;
+    planName: string;
+    amountPaid: number;
+    currency: string;
   } | null;
 };
 
-async function getSubscriberMe(): Promise<SubscriberMeResponse> {
+export async function getSubscriberMe(): Promise<SubscriberMe> {
   const res = await apiRequest("/subscribers/me", { method: "GET" });
   const body = await parseJson(res);
   if (!res.ok) throw new Error(errorMessageFromBody(body, res.status));
-  return body as SubscriberMeResponse;
+  const o = asObject(body);
+  const sub = asObject(o.subscription);
+  const hasSub = o.subscription != null;
+  return {
+    id: String(o.id ?? ""),
+    telegramId: String(o.telegramId ?? ""),
+    telegramUsername: typeof o.telegramUsername === "string" ? o.telegramUsername : null,
+    copyMode: (o.copyMode === "percentage" ? "percentage" : "fixed"),
+    fixedAmount: o.fixedAmount == null ? null : asNumber(o.fixedAmount, 0),
+    percentage: o.percentage == null ? null : asNumber(o.percentage, 0),
+    maxPositionUsdt: o.maxPositionUsdt == null ? null : asNumber(o.maxPositionUsdt, 0),
+    status: (o.status === "active" || o.status === "paused" ? o.status : "inactive") as SubscriberMe["status"],
+    hasExchangeConnected: Boolean(o.hasExchangeConnected),
+    subscription: hasSub
+      ? {
+          id: String(sub.id ?? ""),
+          status: String(sub.status ?? ""),
+          startedAt: String(sub.startedAt ?? ""),
+          expiresAt: String(sub.expiresAt ?? ""),
+          planName: String(sub.planName ?? ""),
+          amountPaid: asNumber(sub.amountPaid, 0),
+          currency: String(sub.currency ?? "USDT"),
+        }
+      : null,
+  };
 }
 
-export async function syncSubscriptionPaymentStatus(): Promise<{
-  state: SubscriptionStatus;
-  payUrl: string | null;
-  activeTo: string | null;
-}> {
-  const me = await getSubscriberMe();
-  const state: SubscriptionStatus =
-    me.subscription && me.subscription.status === "active" ? "active" : "inactive";
+export type SubscriberPatch = {
+  copyMode?: "fixed" | "percentage";
+  fixedAmount?: number;
+  percentage?: number;
+  maxPositionUsdt?: number | null;
+  action?: "pause" | "resume";
+};
+
+export async function patchSubscriberMe(patch: SubscriberPatch): Promise<void> {
+  const res = await apiRequest("/subscribers/me", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
+  });
+  if (!res.ok) {
+    const body = await parseJson(res);
+    throw new Error(errorMessageFromBody(body, res.status));
+  }
+}
+
+// ── BingX credentials ────────────────────────────────────────────────────────
+
+export type ExchangeValidateResult = {
+  ok: boolean;
+  hasWithdrawPermission: boolean;
+  futuresBalance: number | null;
+  error: string | null;
+};
+
+export async function postExchangeValidate(
+  apiKey: string,
+  apiSecret: string,
+): Promise<ExchangeValidateResult> {
+  const res = await apiRequest("/exchange/validate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ apiKey, apiSecret }),
+  });
+  const body = await parseJson(res);
+  const o = asObject(body);
+  if (!res.ok) {
+    return {
+      ok: false,
+      hasWithdrawPermission: Boolean(o.hasWithdrawPermission),
+      futuresBalance: null,
+      error: errorMessageFromBody(body, res.status),
+    };
+  }
   return {
-    state,
-    payUrl: null,
-    activeTo: me.subscription?.expiresAt ?? null,
+    ok: true,
+    hasWithdrawPermission: Boolean(o.hasWithdrawPermission),
+    futuresBalance: o.futuresBalance == null ? null : asNumber(o.futuresBalance, 0),
+    error: null,
+  };
+}
+
+export async function deleteExchangeCredentials(): Promise<void> {
+  const res = await apiRequest("/exchange/credentials", { method: "DELETE" });
+  if (!res.ok) {
+    const body = await parseJson(res);
+    throw new Error(errorMessageFromBody(body, res.status));
+  }
+}
+
+// ── plans + subscription invoice ─────────────────────────────────────────────
+
+export type Plan = {
+  id: string;
+  name: string;
+  durationDays: number;
+  priceUsdt: number;
+};
+
+export async function getPlans(): Promise<Plan[]> {
+  const res = await apiRequest("/plans", { method: "GET" });
+  const body = await parseJson(res);
+  if (!res.ok) throw new Error(errorMessageFromBody(body, res.status));
+  const rows = Array.isArray(body) ? (body as JsonObject[]) : [];
+  return rows.map((r) => ({
+    id: String(r.id ?? ""),
+    name: String(r.name ?? ""),
+    durationDays: asNumber(r.durationDays, 0),
+    priceUsdt: asNumber(r.priceUsdt, 0),
+  }));
+}
+
+export type SubscriptionInvoice = {
+  invoiceId: string;
+  botInvoiceUrl: string;
+  miniAppInvoiceUrl: string | null;
+};
+
+export async function createSubscriptionInvoice(planId: string): Promise<SubscriptionInvoice> {
+  const res = await apiRequest("/subscriptions/create-invoice", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ planId }),
+  });
+  const body = await parseJson(res);
+  if (!res.ok) throw new Error(errorMessageFromBody(body, res.status));
+  const o = asObject(body);
+  return {
+    invoiceId: String(o.invoiceId ?? ""),
+    botInvoiceUrl: String(o.botInvoiceUrl ?? ""),
+    miniAppInvoiceUrl:
+      typeof o.miniAppInvoiceUrl === "string" ? o.miniAppInvoiceUrl : null,
   };
 }

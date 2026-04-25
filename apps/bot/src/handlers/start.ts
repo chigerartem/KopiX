@@ -1,19 +1,39 @@
 /**
  * /start — registration and welcome.
  *
- * Flow (architecture §13.2):
- *   - Upsert subscriber by telegram_id
- *   - If new: status = inactive, send welcome + /connect prompt
- *   - If existing: short status summary + hint to /status or /dashboard
+ * The bot is intentionally read-only: all interactive flows (API key
+ * connection, copy settings, subscription) live in the Mini App. /start
+ * therefore just upserts the subscriber row, prints a short EN intro, and
+ * exposes a single "Open Mini App" button.
  *
- * The upsert is identical to what the API /middleware/auth.ts does for
- * Mini App requests, so subscribers who first use the bot and later open
- * the Mini App (or vice versa) remain a single row keyed on telegram_id.
+ * The "How it works" guide URL will be supplied later — when present, a
+ * second button is added; while empty, that button is hidden.
  */
 
-import type { CommandContext, Context } from "grammy";
+import { InlineKeyboard, type CommandContext, type Context } from "grammy";
 import { logger } from "../logger.js";
 import { prisma } from "../prisma.js";
+import { config } from "../config.js";
+
+// Future: replace with the public guide URL. Empty string keeps the button hidden.
+const GUIDE_URL = "";
+
+const INTRO = [
+  "Welcome to KopiX — automated copy-trading on BingX.",
+  "",
+  "We mirror every trade of our master trader to your BingX account in real time, sized by your own rules. The Mini App is where you connect your API key, choose a copy mode, and manage your subscription.",
+  "",
+  "This bot will keep you posted: you'll get a notification whenever a trade is opened or closed on your account.",
+].join("\n");
+
+function buildKeyboard(): InlineKeyboard | null {
+  if (!config.miniAppUrl) return null;
+  const kb = new InlineKeyboard().webApp("Open Mini App", config.miniAppUrl);
+  if (GUIDE_URL) {
+    kb.row().url("How it works", GUIDE_URL);
+  }
+  return kb;
+}
 
 export async function handleStart(ctx: CommandContext<Context>): Promise<void> {
   const from = ctx.from;
@@ -21,7 +41,6 @@ export async function handleStart(ctx: CommandContext<Context>): Promise<void> {
 
   const telegramId = BigInt(from.id);
 
-  // Detect new vs existing
   const existing = await prisma.subscriber.findUnique({
     where: { telegramId },
   });
@@ -45,33 +64,6 @@ export async function handleStart(ctx: CommandContext<Context>): Promise<void> {
     isNew ? "Registered new subscriber" : "Returning subscriber",
   );
 
-  if (isNew) {
-    await ctx.reply(
-      [
-        "👋 Добро пожаловать в KopiX!",
-        "",
-        "Это сервис автоматического копирования сделок с BingX.",
-        "Чтобы начать, подключите свой аккаунт BingX — отправьте /connect.",
-        "",
-        "После этого выберите подписку через /subscribe.",
-      ].join("\n"),
-    );
-    return;
-  }
-
-  const hasExchange = !!(subscriber.apiKeyEncrypted && subscriber.apiSecretEncrypted);
-
-  const parts: string[] = ["С возвращением!"];
-  if (!hasExchange) {
-    parts.push("", "Вы ещё не подключили BingX — отправьте /connect.");
-  } else {
-    parts.push(
-      "",
-      "Текущий статус: /status",
-      "Настройки копирования: /mode",
-      "Открыть дашборд: /dashboard",
-    );
-  }
-
-  await ctx.reply(parts.join("\n"));
+  const keyboard = buildKeyboard();
+  await ctx.reply(INTRO, keyboard ? { reply_markup: keyboard } : undefined);
 }

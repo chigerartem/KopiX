@@ -61,6 +61,7 @@
 
 .item {
   display: block;
+  box-sizing: border-box;
   width: 100%;
   padding: var(--ds-space-sm) var(--ds-space-md);
   border: none;
@@ -69,6 +70,7 @@
   text-align: left;
   font-size: var(--ds-font-body);
   font-weight: 500;
+  font-family: inherit;
   letter-spacing: var(--ds-tracking-section);
   color: var(--ds-text-primary);
   cursor: pointer;

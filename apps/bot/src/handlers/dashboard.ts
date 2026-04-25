@@ -4,18 +4,16 @@ import { config } from "../config.js";
 
 export async function handleDashboard(ctx: CommandContext<Context>): Promise<void> {
   if (ctx.chat?.type !== "private") {
-    await ctx.reply("⚠️ Команда /dashboard работает только в личном чате с ботом.");
+    await ctx.reply("⚠️ /dashboard only works in a private chat with the bot.");
     return;
   }
 
   if (!config.miniAppUrl) {
-    await ctx.reply(
-      "Дашборд пока недоступен — оператор не настроил MINIAPP_URL.",
-    );
+    await ctx.reply("Dashboard is not configured — operator must set MINIAPP_URL.");
     return;
   }
 
-  const kb = new InlineKeyboard().webApp("Открыть дашборд 📊", config.miniAppUrl);
+  const kb = new InlineKeyboard().webApp("Open dashboard 📊", config.miniAppUrl);
 
-  await ctx.reply("Откройте мини-приложение KopiX:", { reply_markup: kb });
+  await ctx.reply("Open the KopiX Mini App:", { reply_markup: kb });
 }

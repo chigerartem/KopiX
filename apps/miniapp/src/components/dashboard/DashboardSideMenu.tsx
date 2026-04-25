@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { KOPIX_SUPPORT_TELEGRAM_URL } from "@/config/links";
 import styles from "./DashboardSideMenu.module.css";
 
@@ -8,6 +9,13 @@ type DashboardSideMenuProps = {
 };
 
 export function DashboardSideMenu({ open, onClose }: DashboardSideMenuProps) {
+  const navigate = useNavigate();
+
+  function go(path: string) {
+    onClose();
+    navigate(path);
+  }
+
   useEffect(() => {
     if (!open) return;
     const prev = document.body.style.overflow;
@@ -40,6 +48,33 @@ export function DashboardSideMenu({ open, onClose }: DashboardSideMenuProps) {
       />
       <nav className={styles.panel} aria-label="Menu">
         <ul className={styles.list}>
+          <li>
+            <button
+              type="button"
+              className={styles.item}
+              onClick={() => go("/api-keys")}
+            >
+              API keys
+            </button>
+          </li>
+          <li>
+            <button
+              type="button"
+              className={styles.item}
+              onClick={() => go("/copy-settings")}
+            >
+              Copy settings
+            </button>
+          </li>
+          <li>
+            <button
+              type="button"
+              className={styles.item}
+              onClick={() => go("/subscription/setup")}
+            >
+              Subscription
+            </button>
+          </li>
           <li>
             <a
               className={styles.item}

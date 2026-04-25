@@ -9,7 +9,7 @@ import {
 } from "react";
 import type { SubscriptionStatus } from "@/types/app";
 import type { OpenTradePosition } from "@/types/trade";
-import { syncSubscriptionPaymentStatus } from "@/services/api";
+import { getSubscriberMe } from "@/services/api";
 
 type DashboardBalanceStats = {
   totalBalanceUsdt: number;
@@ -81,11 +81,16 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       const promise = (async () => {
         setIsSubscriptionSyncing(true);
         try {
-          const status = await syncSubscriptionPaymentStatus();
-          setSubscriptionStatus(status.state);
-          setSubscriptionValidUntil(status.activeTo);
+          const me = await getSubscriberMe();
+          const state: SubscriptionStatus =
+            me.subscription && me.subscription.status === "active"
+              ? "active"
+              : "inactive";
+          const activeTo = me.subscription?.expiresAt ?? null;
+          setSubscriptionStatus(state);
+          setSubscriptionValidUntil(activeTo);
           lastSubscriptionSyncAtRef.current = Date.now();
-          return status;
+          return { state, payUrl: null, activeTo };
         } finally {
           setIsSubscriptionSyncing(false);
           inFlightSubscriptionSyncRef.current = null;

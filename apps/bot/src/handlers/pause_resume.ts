@@ -4,7 +4,7 @@ import { prisma } from "../prisma.js";
 
 async function handlePause(ctx: CommandContext<Context>): Promise<void> {
   if (ctx.chat?.type !== "private") {
-    await ctx.reply("⚠️ Команда /pause работает только в личном чате с ботом.");
+    await ctx.reply("⚠️ /pause only works in a private chat with the bot.");
     return;
   }
   if (!ctx.from) return;
@@ -14,18 +14,18 @@ async function handlePause(ctx: CommandContext<Context>): Promise<void> {
   });
 
   if (!subscriber) {
-    await ctx.reply("Вы ещё не зарегистрированы. Отправьте /start, чтобы начать.");
+    await ctx.reply("You're not registered yet. Send /start to begin.");
     return;
   }
 
   if (subscriber.status === "paused") {
-    await ctx.reply("Копирование уже на паузе. Возобновите через /resume.");
+    await ctx.reply("Copying is already paused. Resume with /resume.");
     return;
   }
 
   if (subscriber.status !== "active") {
     await ctx.reply(
-      "Нечего ставить на паузу — копирование ещё не активно.\nОтправьте /status, чтобы проверить ваш статус.",
+      "Nothing to pause — copying isn't active yet.\nSend /status to check your state.",
     );
     return;
   }
@@ -41,13 +41,13 @@ async function handlePause(ctx: CommandContext<Context>): Promise<void> {
   );
 
   await ctx.reply(
-    "⏸ Копирование приостановлено. Открытые позиции остаются как есть.\n\nВозобновите через /resume.",
+    "⏸ Copying paused. Open positions stay as they are.\n\nResume with /resume.",
   );
 }
 
 async function handleResume(ctx: CommandContext<Context>): Promise<void> {
   if (ctx.chat?.type !== "private") {
-    await ctx.reply("⚠️ Команда /resume работает только в личном чате с ботом.");
+    await ctx.reply("⚠️ /resume only works in a private chat with the bot.");
     return;
   }
   if (!ctx.from) return;
@@ -63,14 +63,12 @@ async function handleResume(ctx: CommandContext<Context>): Promise<void> {
   });
 
   if (!subscriber) {
-    await ctx.reply("Вы ещё не зарегистрированы. Отправьте /start, чтобы начать.");
+    await ctx.reply("You're not registered yet. Send /start to begin.");
     return;
   }
 
   if (subscriber.status !== "paused") {
-    await ctx.reply(
-      "Вы не на паузе.\nОтправьте /status, чтобы проверить текущее состояние.",
-    );
+    await ctx.reply("You're not paused.\nSend /status to see your current state.");
     return;
   }
 
@@ -79,14 +77,14 @@ async function handleResume(ctx: CommandContext<Context>): Promise<void> {
 
   if (!hasKeys) {
     await ctx.reply(
-      "❌ Нет подключённого аккаунта BingX. Сначала отправьте /connect, затем /resume.",
+      "❌ No BingX account connected. Add an API key in the Mini App, then /resume.",
     );
     return;
   }
 
   if (!hasSub) {
     await ctx.reply(
-      "❌ Нет активной подписки. Сначала оплатите её через /subscribe, затем /resume.",
+      "❌ No active subscription. Pick a plan in the Mini App, then /resume.",
     );
     return;
   }
@@ -102,7 +100,7 @@ async function handleResume(ctx: CommandContext<Context>): Promise<void> {
   );
 
   await ctx.reply(
-    "▶️ Копирование возобновлено! Следующая сделка мастера будет скопирована на ваш аккаунт.",
+    "▶️ Copying resumed! The master's next trade will be copied to your account.",
   );
 }
 

@@ -43,6 +43,28 @@ export function openTelegramUrl(url: string): void {
   window.open(href, "_blank", "noopener,noreferrer");
 }
 
+/**
+ * Opens an arbitrary URL. Inside Telegram WebApp uses `tg.openLink` so the
+ * user stays in Telegram (external browser pop-up); falls back to a plain
+ * new tab outside Telegram. For t.me links use `openTelegramUrl` instead.
+ */
+export function openLink(url: string): void {
+  let parsed: URL;
+  try {
+    parsed = new URL(url.trim());
+  } catch {
+    return;
+  }
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return;
+  const href = parsed.toString();
+  const tg = window.Telegram?.WebApp;
+  if (tg?.openLink) {
+    tg.openLink(href);
+    return;
+  }
+  window.open(href, "_blank", "noopener,noreferrer");
+}
+
 /** Opens `https://t.me/{username}` (channel or bot). */
 export function openTelegramChannel(username: string): void {
   const clean = username.replace(/^@/, "").replace(/^\s+|\s+$/g, "");

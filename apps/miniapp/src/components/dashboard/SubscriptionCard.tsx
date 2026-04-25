@@ -1,9 +1,10 @@
 /**
- * Read-only subscription status card.
+ * Subscription status card on the dashboard.
  *
- * Shows active status + expiry date, or a hint to use the bot.
- * Subscription purchase is handled in the bot via /subscribe.
+ * Active → green-tinted panel with expiry date.
+ * Inactive → neutral panel + "Subscribe" CTA → /subscription/setup.
  */
+import { useNavigate } from "react-router-dom";
 import { useAppState } from "@/contexts/AppStateContext";
 import styles from "./SubscriptionCard.module.css";
 
@@ -20,6 +21,7 @@ function formatValidUntil(iso: string): string {
 }
 
 export function SubscriptionCard() {
+  const navigate = useNavigate();
   const { subscriptionStatus, subscriptionValidUntil } = useAppState();
 
   const isActive = subscriptionStatus === "active";
@@ -29,7 +31,7 @@ export function SubscriptionCard() {
       className={styles.section}
       aria-label={isActive ? "Copy trading access" : "No active subscription"}
     >
-      <div className={`${styles.panel}${!isActive ? ` ${styles.panelInactive}` : ''}`}>
+      <div className={`${styles.panel}${!isActive ? ` ${styles.panelInactive}` : ""}`}>
         <div className={styles.body}>
           {isActive ? (
             <>
@@ -48,8 +50,15 @@ export function SubscriptionCard() {
             <>
               <h2 className={styles.title}>No subscription</h2>
               <p className={styles.subtitle}>
-                Use /subscribe in the bot to activate
+                Subscribe to start copying the master's trades.
               </p>
+              <button
+                type="button"
+                className={styles.cta}
+                onClick={() => navigate("/subscription/setup")}
+              >
+                Subscribe
+              </button>
             </>
           )}
         </div>
