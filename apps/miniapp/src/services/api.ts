@@ -334,7 +334,7 @@ export async function getPlans(): Promise<Plan[]> {
     id: String(r.id ?? ""),
     name: String(r.name ?? ""),
     durationDays: asNumber(r.durationDays, 0),
-    priceUsdt: asNumber(r.priceUsdt, 0),
+    priceUsdt: asNumber(r.price, 0),
   }));
 }
 

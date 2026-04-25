@@ -8,24 +8,24 @@ async function seed(): Promise<void> {
   // Subscription plans
   await prisma.plan.upsert({
     where: { id: "plan-trial-7d" },
-    update: {},
+    update: { isActive: false },
     create: {
       id: "plan-trial-7d",
       name: "Trial",
       price: 5,
       currency: "USDT",
       durationDays: 7,
-      isActive: true,
+      isActive: false,
     },
   });
 
   await prisma.plan.upsert({
     where: { id: "plan-monthly-30d" },
-    update: {},
+    update: { name: "Monthly", price: 10, currency: "USDT", durationDays: 30, isActive: true },
     create: {
       id: "plan-monthly-30d",
       name: "Monthly",
-      price: 30,
+      price: 10,
       currency: "USDT",
       durationDays: 30,
       isActive: true,
@@ -34,14 +34,14 @@ async function seed(): Promise<void> {
 
   await prisma.plan.upsert({
     where: { id: "plan-quarterly-90d" },
-    update: {},
+    update: { isActive: false },
     create: {
       id: "plan-quarterly-90d",
       name: "Quarterly",
       price: 75,
       currency: "USDT",
       durationDays: 90,
-      isActive: true,
+      isActive: false,
     },
   });
 
