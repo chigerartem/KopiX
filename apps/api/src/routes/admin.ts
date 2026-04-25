@@ -80,6 +80,68 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     const activeSubCount = subscribers.filter((s) => s.subscriptions.length > 0).length;
     const connectedCount = subscribers.filter((s) => s.apiKeyEncrypted !== null).length;
 
+    // ── Financial metrics ──────────────────────────────────────────────────
+    const allSubs = await prisma.subscription.findMany({
+      include: { plan: true },
+      orderBy: { startedAt: "asc" },
+    });
+
+    const nowDate = new Date();
+    const startOfMonth = new Date(nowDate.getFullYear(), nowDate.getMonth(), 1);
+
+    const activeSubs = allSubs.filter(
+      (s) => s.status === "active" && s.expiresAt > nowDate,
+    );
+    const mrr = activeSubs.reduce((sum, s) => {
+      const days = s.plan.durationDays > 0 ? s.plan.durationDays : 30;
+      return sum + (Number(s.amountPaid ?? 0) / days) * 30;
+    }, 0);
+    const arr = mrr * 12;
+    const arpu = activeSubs.length > 0 ? mrr / activeSubs.length : 0;
+
+    const totalRevenue = allSubs.reduce((sum, s) => sum + Number(s.amountPaid ?? 0), 0);
+    const monthRevenue = allSubs
+      .filter((s) => s.startedAt >= startOfMonth)
+      .reduce((sum, s) => sum + Number(s.amountPaid ?? 0), 0);
+    const newUsersMonth = subscribers.filter((s) => s.createdAt >= startOfMonth).length;
+    const churnMonth = allSubs.filter(
+      (s) =>
+        (s.status === "expired" || s.status === "cancelled") &&
+        s.expiresAt >= startOfMonth &&
+        s.expiresAt < nowDate,
+    ).length;
+
+    // Currency symbol (use currency from most recent subscription, default $)
+    const currencySymbol =
+      allSubs.length > 0 ? (allSubs[allSubs.length - 1]?.currency ?? allSubs[allSubs.length - 1]?.plan.currency ?? "$") : "$";
+    const fmtCurrency = (n: number): string => {
+      const sym = currencySymbol === "USD" || currencySymbol === "USDT" ? "$" : currencySymbol;
+      if (n >= 1000) return `${sym}${(n / 1000).toFixed(1)}k`;
+      return `${sym}${n.toFixed(0)}`;
+    };
+
+    // Monthly breakdown for the last 12 months
+    const months12: Array<{ label: string; start: Date; end: Date }> = [];
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(nowDate.getFullYear(), nowDate.getMonth() - i, 1);
+      months12.push({
+        label: d.toLocaleString("ru-RU", { month: "short", year: "2-digit" }),
+        start: d,
+        end: new Date(d.getFullYear(), d.getMonth() + 1, 1),
+      });
+    }
+    const chartData = months12.map((m) => ({
+      label: m.label,
+      newUsers: subscribers.filter((s) => s.createdAt >= m.start && s.createdAt < m.end).length,
+      revenue: allSubs
+        .filter((s) => s.startedAt >= m.start && s.startedAt < m.end)
+        .reduce((sum, s) => sum + Number(s.amountPaid ?? 0), 0),
+      active: allSubs.filter(
+        (s) => s.status !== "cancelled" && s.startedAt < m.end && s.expiresAt > m.start,
+      ).length,
+    }));
+    const chartJson = JSON.stringify(chartData);
+
     const rows = subscribers
       .map((s, i) => {
         const sub = s.subscriptions[0];
@@ -117,6 +179,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>KopiX Admin</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
     body{background:#0f172a;color:#e2e8f0;font-family:system-ui,sans-serif;padding:24px}
@@ -127,6 +190,19 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     .stat{background:#1e293b;border-radius:8px;padding:16px 24px;min-width:140px}
     .stat-val{font-size:32px;font-weight:700;color:#38bdf8}
     .stat-label{font-size:13px;color:#94a3b8;margin-top:4px}
+    .stat-fin{background:#162032;border:1px solid #1e3a5f;border-radius:8px;padding:14px 20px;min-width:120px}
+    .stat-fin .stat-val{font-size:24px;color:#34d399}
+    .stat-fin .stat-label{font-size:12px;color:#94a3b8;margin-top:4px}
+    .stat-churn .stat-val{color:#f87171}
+    .chart-section{background:#1e293b;border-radius:10px;padding:20px 24px;margin-bottom:28px}
+    .chart-section h2{margin-bottom:14px}
+    .chart-tabs{display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap}
+    .chart-tab{background:#0f172a;border:1px solid #334155;color:#94a3b8;
+      border-radius:6px;padding:6px 16px;font-size:13px;cursor:pointer;transition:all .15s}
+    .chart-tab:hover{border-color:#475569;color:#e2e8f0}
+    .chart-tab.active{background:#1d4ed8;border-color:#1d4ed8;color:#fff}
+    .section-title{font-size:13px;color:#64748b;text-transform:uppercase;letter-spacing:.05em;
+      margin-bottom:12px;margin-top:28px}
 
     /* filters */
     .filter-bar{display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;align-items:center}
@@ -182,6 +258,50 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     <div class="stat"><div class="stat-val">${totalCount}</div><div class="stat-label">Всего пользователей</div></div>
     <div class="stat"><div class="stat-val">${connectedCount}</div><div class="stat-label">Подключили BingX</div></div>
     <div class="stat"><div class="stat-val">${activeSubCount}</div><div class="stat-label">Активных подписок</div></div>
+  </div>
+
+  <!-- ── Financial metrics ── -->
+  <div class="section-title">Финансы</div>
+  <div class="stats" style="margin-bottom:28px">
+    <div class="stat-fin">
+      <div class="stat-val">${fmtCurrency(mrr)}</div>
+      <div class="stat-label">MRR</div>
+    </div>
+    <div class="stat-fin">
+      <div class="stat-val">${fmtCurrency(arr)}</div>
+      <div class="stat-label">ARR</div>
+    </div>
+    <div class="stat-fin">
+      <div class="stat-val">${fmtCurrency(monthRevenue)}</div>
+      <div class="stat-label">Выручка (мес.)</div>
+    </div>
+    <div class="stat-fin">
+      <div class="stat-val">${fmtCurrency(totalRevenue)}</div>
+      <div class="stat-label">Всего выручки</div>
+    </div>
+    <div class="stat-fin">
+      <div class="stat-val">${fmtCurrency(arpu)}</div>
+      <div class="stat-label">ARPU</div>
+    </div>
+    <div class="stat-fin">
+      <div class="stat-val">${newUsersMonth}</div>
+      <div class="stat-label">Новых (мес.)</div>
+    </div>
+    <div class="stat-fin stat-churn">
+      <div class="stat-val">${churnMonth}</div>
+      <div class="stat-label">Отток (мес.)</div>
+    </div>
+  </div>
+
+  <!-- ── Charts ── -->
+  <div class="chart-section">
+    <h2>📊 Динамика — последние 12 месяцев</h2>
+    <div class="chart-tabs">
+      <button class="chart-tab active" onclick="setChart('users',this)">👤 Новые пользователи</button>
+      <button class="chart-tab" onclick="setChart('revenue',this)">💰 Выручка</button>
+      <button class="chart-tab" onclick="setChart('active',this)">📈 Активные подписки</button>
+    </div>
+    <canvas id="adminChart" style="max-height:300px"></canvas>
   </div>
 
   <!-- ── Filters ── -->
@@ -268,6 +388,112 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   </div><!-- /.panel-wrap -->
 
   <script>
+    const CHART_DATA = ${chartJson};
+    const CURRENCY_SYM = ${JSON.stringify(currencySymbol === "USD" || currencySymbol === "USDT" ? "$" : currencySymbol)};
+
+    let adminChart = null;
+    let activeChartType = 'users';
+
+    const CHART_CONFIGS = {
+      users: {
+        label: 'Новых пользователей',
+        color: '#38bdf8',
+        fill: 'rgba(56,189,248,0.15)',
+        getData: d => d.newUsers,
+        yLabel: 'Пользователей',
+      },
+      revenue: {
+        label: 'Выручка',
+        color: '#34d399',
+        fill: 'rgba(52,211,153,0.15)',
+        getData: d => d.revenue,
+        yLabel: 'Выручка (' + CURRENCY_SYM + ')',
+      },
+      active: {
+        label: 'Активных подписок',
+        color: '#a78bfa',
+        fill: 'rgba(167,139,250,0.15)',
+        getData: d => d.active,
+        yLabel: 'Подписок',
+      },
+    };
+
+    function buildChart(type) {
+      const cfg = CHART_CONFIGS[type];
+      const labels = CHART_DATA.map(d => d.label);
+      const values = CHART_DATA.map(cfg.getData);
+      const ctx = document.getElementById('adminChart').getContext('2d');
+
+      if (adminChart) { adminChart.destroy(); adminChart = null; }
+
+      adminChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [{
+            type: type === 'active' ? 'line' : 'bar',
+            label: cfg.label,
+            data: values,
+            backgroundColor: cfg.fill,
+            borderColor: cfg.color,
+            borderWidth: 2,
+            borderRadius: type === 'active' ? 0 : 5,
+            fill: type === 'active',
+            tension: 0.35,
+            pointRadius: 4,
+            pointBackgroundColor: cfg.color,
+          }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          animation: { duration: 300 },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: function(ctx) {
+                  const v = ctx.parsed.y;
+                  if (type === 'revenue') return ' ' + CURRENCY_SYM + v.toFixed(2);
+                  return ' ' + v;
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              grid: { color: 'rgba(255,255,255,0.05)' },
+              ticks: { color: '#94a3b8', font: { size: 11 } },
+            },
+            y: {
+              grid: { color: 'rgba(255,255,255,0.05)' },
+              ticks: {
+                color: '#94a3b8',
+                font: { size: 11 },
+                callback: function(v) {
+                  if (type === 'revenue') return CURRENCY_SYM + v;
+                  return v;
+                }
+              },
+              title: { display: true, text: cfg.yLabel, color: '#64748b', font: { size: 11 } },
+              beginAtZero: true,
+            },
+          },
+        },
+      });
+    }
+
+    function setChart(type, btn) {
+      activeChartType = type;
+      document.querySelectorAll('.chart-tab').forEach(function(b) { b.classList.remove('active'); });
+      if (btn) btn.classList.add('active');
+      buildChart(type);
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+      buildChart('users');
+    });
+
     const TOK = ${tokenJs};
 
     // ── table filter ──────────────────────────────────────────────────────────
