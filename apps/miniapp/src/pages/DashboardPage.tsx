@@ -19,6 +19,7 @@ import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { DashboardSideMenu } from "@/components/dashboard/DashboardSideMenu";
 import { OnboardingCard } from "@/components/dashboard/OnboardingCard";
 import { OpenTradesSection } from "@/components/dashboard/OpenTradesSection";
+import { PausedBanner } from "@/components/dashboard/PausedBanner";
 import {
   getBalance,
   getSwapPnlHistory,
@@ -39,7 +40,7 @@ export function DashboardPage() {
     setTradesOpen,
     refreshSubscriptionStatus,
   } = useAppState();
-  const { step, refresh: refreshSubscriber } = useSubscriber();
+  const { me, step, refresh: refreshSubscriber } = useSubscriber();
   const [tab, setTab] = useState<TabId>("home");
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -112,6 +113,7 @@ export function DashboardPage() {
         <div className={styles.stack}>
           {onboardingComplete ? (
             <>
+              {me?.status === "paused" && <PausedBanner />}
               <BalanceCard stats={dashboardBalanceStats as Partial<BalanceCardStats>} />
               <SubscriptionCard />
               <OpenTradesSection

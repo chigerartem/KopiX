@@ -24,7 +24,7 @@ import styles from "./SubscriptionSetupPage.module.css";
 
 export function SubscriptionSetupPage() {
   const navigate = useNavigate();
-  const { me, refresh } = useSubscriber();
+  const { me, step, refresh } = useSubscriber();
 
   const [plans, setPlans] = useState<Plan[]>([]);
   const [plansLoading, setPlansLoading] = useState(true);
@@ -55,16 +55,21 @@ export function SubscriptionSetupPage() {
     };
   }, []);
 
-  // Auto-advance to Step 2 once the subscription becomes active. We only
-  // do this after the user has actually opened the invoice (`pending`),
-  // so a user who already has an active subscription and just wandered
-  // onto this page doesn't get yanked off immediately.
+  // Auto-advance once the subscription becomes active after a payment.
+  // We only run this after the user has actually opened the invoice
+  // (`pending`), so someone who already has an active subscription and
+  // just wandered onto this page isn't yanked off immediately.
+  //
+  // Where we land depends on the rest of the onboarding state:
+  //   - first-time setup → /api-keys/add (next required step)
+  //   - renewal of a fully configured account → /dashboard
   useEffect(() => {
     if (!pending) return;
-    if (me?.subscription?.status === "active") {
-      navigate("/api-keys/add", { replace: true });
-    }
-  }, [pending, me?.subscription?.status, navigate]);
+    if (me?.subscription?.status !== "active") return;
+    if (step === "api_key") navigate("/api-keys/add", { replace: true });
+    else if (step === "copy_settings") navigate("/copy-settings", { replace: true });
+    else if (step === "done") navigate("/dashboard", { replace: true });
+  }, [pending, me?.subscription?.status, step, navigate]);
 
   async function handlePay() {
     if (!selectedPlanId || busy) return;

@@ -4,6 +4,13 @@
  * The subscriber model stores at most one (apiKey, apiSecret) pair, so this
  * page renders either a "key connected" card with Disconnect, or an empty
  * state with an "Add API key" CTA leading to /api-keys/add.
+ *
+ * Subscription gate is split intentionally:
+ *   - Disconnect is always available when a key is connected. Even if the
+ *     subscription has expired, the user must be able to clean up.
+ *   - Adding a NEW key requires an active subscription — copy-trading only
+ *     runs while a plan is active, so collecting credentials prematurely
+ *     is just clutter.
  */
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -44,13 +51,6 @@ export function ApiKeysPage() {
 
         {loading && !me ? (
           <div className={styles.placeholder}>Loading…</div>
-        ) : !hasSub ? (
-          <PrerequisiteNotice
-            title="Subscription required"
-            body="Activate your KopiX subscription before connecting a BingX API key — copying only runs while a plan is active."
-            cta="Subscribe"
-            to="/subscription/setup"
-          />
         ) : connected ? (
           <section className={styles.card} aria-label="Connected BingX key">
             <div className={styles.cardHead}>
@@ -59,13 +59,17 @@ export function ApiKeysPage() {
               </span>
               <div className={styles.cardHeadText}>
                 <h2 className={styles.cardTitle}>BingX</h2>
-                <p className={styles.cardSubtitle}>Trade-only key · connected</p>
+                <p className={styles.cardSubtitle}>
+                  Trade-only key · {hasSub ? "connected" : "subscription expired"}
+                </p>
               </div>
-              <span className={styles.statusDot} aria-hidden />
+              {hasSub && <span className={styles.statusDot} aria-hidden />}
             </div>
 
             <p className={styles.note}>
-              Withdraw permission is rejected on connect — only spot/futures trading is allowed.
+              {hasSub
+                ? "Withdraw permission is rejected on connect — only spot/futures trading is allowed."
+                : "Your subscription has ended — copying is paused. Renew to resume, or disconnect this key."}
             </p>
 
             <button
@@ -79,6 +83,13 @@ export function ApiKeysPage() {
             </button>
             {error && <p className={styles.error} role="alert">{error}</p>}
           </section>
+        ) : !hasSub ? (
+          <PrerequisiteNotice
+            title="Subscription required"
+            body="Activate your KopiX subscription before connecting a BingX API key — copying only runs while a plan is active."
+            cta="Subscribe"
+            to="/subscription/setup"
+          />
         ) : (
           <section className={styles.card} aria-label="No API key">
             <div className={styles.emptyTitleRow}>

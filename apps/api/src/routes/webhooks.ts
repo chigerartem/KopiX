@@ -145,6 +145,14 @@ export async function webhookRoutes(app: FastifyInstance): Promise<void> {
   });
 }
 
+/**
+ * Sends an English HTML payment confirmation to the subscriber via the
+ * Telegram Bot API. Done with a direct `fetch` rather than importing the
+ * grammY bot so this route stays in apps/api with no cross-app dependency.
+ *
+ * Soft-fail: any error is swallowed by the caller so a Telegram outage
+ * never blocks the 200 we owe CryptoBot.
+ */
 async function notifySubscriber(
   telegramId: bigint,
   planName: string,
@@ -154,17 +162,28 @@ async function notifySubscriber(
   const token = process.env["TELEGRAM_BOT_TOKEN"];
   if (!token) return;
 
+  const expires = expiresAt.toISOString().slice(0, 10);
+  const escape = (s: string): string =>
+    s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
   const text = [
-    `✅ Оплата получена! Подписка «${planName}» активна.`,
+    `✅ <b>Payment received</b>`,
     "",
-    `Срок: ${durationDays} дн. — истекает ${expiresAt.toISOString().slice(0, 10)}.`,
+    `Plan: <b>${escape(planName)}</b>`,
+    `Duration: ${durationDays} day${durationDays === 1 ? "" : "s"}`,
+    `Expires: ${expires}`,
     "",
-    "Копирование сделок запущено. Откройте /status или /dashboard для мониторинга.",
+    "Copy trading is now active. Open the Mini App to monitor balance and trades.",
   ].join("\n");
 
   await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ chat_id: telegramId.toString(), text }),
+    body: JSON.stringify({
+      chat_id: telegramId.toString(),
+      text,
+      parse_mode: "HTML",
+      link_preview_options: { is_disabled: true },
+    }),
   });
 }
