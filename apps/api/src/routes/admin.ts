@@ -155,7 +155,11 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           <td>${p.durationDays} д.</td>
           <td>${p.isActive ? '<span style="color:#22c55e">✅ Активен</span>' : '<span style="color:#94a3b8">❌ Скрыт</span>'}</td>
           <td>
-            <button class="edit-price-btn" onclick="openEditPrice('${esc(p.id)}',${Number(p.price)},${JSON.stringify(esc(p.name))})"
+            <button class="edit-price-btn"
+              data-plan-id="${esc(p.id)}"
+              data-plan-price="${Number(p.price)}"
+              data-plan-name="${esc(p.name)}"
+              onclick="openEditPrice(this.dataset.planId,Number(this.dataset.planPrice),this.dataset.planName)"
               style="background:#1d4ed8;color:#fff;border:none;border-radius:6px;padding:5px 14px;font-size:12px;cursor:pointer">
               Изменить цену
             </button>
@@ -716,7 +720,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     function openEditPrice(id, currentPrice, planName) {
       editingPlanId = id;
       document.getElementById('modal-plan-name').textContent = planName;
-      document.getElementById('modal-price-input').value = currentPrice.toFixed(2);
+      document.getElementById('modal-price-input').value = Number(currentPrice).toFixed(2);
       document.getElementById('modal-res').textContent = '';
       var m = document.getElementById('price-modal');
       m.style.display = 'flex';
