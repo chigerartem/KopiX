@@ -153,8 +153,8 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           <td id="plan-price-${esc(p.id)}">${Number(p.price).toFixed(2)}</td>
           <td>${esc(p.currency)}</td>
           <td>${p.durationDays} д.</td>
-          <td>${p.isActive ? '<span style="color:#22c55e">✅ Активен</span>' : '<span style="color:#94a3b8">❌ Скрыт</span>'}</td>
-          <td>
+          <td id="plan-status-${esc(p.id)}">${p.isActive ? '<span style="color:#22c55e">✅ Активен</span>' : '<span style="color:#94a3b8">❌ Скрыт</span>'}</td>
+          <td style="display:flex;gap:6px;flex-wrap:wrap">
             <button class="edit-price-btn"
               data-plan-id="${esc(p.id)}"
               data-plan-price="${Number(p.price)}"
@@ -162,6 +162,13 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
               onclick="openEditPrice(this.dataset.planId,Number(this.dataset.planPrice),this.dataset.planName)"
               style="background:#1d4ed8;color:#fff;border:none;border-radius:6px;padding:5px 14px;font-size:12px;cursor:pointer">
               Изменить цену
+            </button>
+            <button id="plan-toggle-${esc(p.id)}"
+              data-plan-id="${esc(p.id)}"
+              data-plan-active="${p.isActive ? 'true' : 'false'}"
+              onclick="togglePlan(this.dataset.planId,this.dataset.planActive==='true')"
+              style="background:${p.isActive ? '#7f1d1d' : '#14532d'};color:#fff;border:none;border-radius:6px;padding:5px 14px;font-size:12px;cursor:pointer">
+              ${p.isActive ? 'Деактивировать' : 'Активировать'}
             </button>
           </td>
         </tr>`,
@@ -714,6 +721,41 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       btn.disabled = false;
       btn.textContent = 'Отправить рассылку';
     }
+    // ── plan toggle active ────────────────────────────────────────────────────
+    async function togglePlan(id, currentlyActive) {
+      var btn = document.getElementById('plan-toggle-' + id);
+      if (!btn) return;
+      btn.disabled = true;
+      btn.textContent = '…';
+      try {
+        var resp = await fetch('/api/admin/plans/' + encodeURIComponent(id) + '?token=' + encodeURIComponent(TOK), {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ isActive: !currentlyActive })
+        });
+        var data = await resp.json();
+        if (resp.ok) {
+          var newActive = data.isActive;
+          // update status cell
+          var statusCell = document.getElementById('plan-status-' + id);
+          if (statusCell) statusCell.innerHTML = newActive
+            ? '<span style="color:#22c55e">✅ Активен</span>'
+            : '<span style="color:#94a3b8">❌ Скрыт</span>';
+          // update button
+          btn.dataset.planActive = newActive ? 'true' : 'false';
+          btn.textContent = newActive ? 'Деактивировать' : 'Активировать';
+          btn.style.background = newActive ? '#7f1d1d' : '#14532d';
+        } else {
+          alert('Ошибка: ' + (data.error || resp.status));
+          btn.textContent = currentlyActive ? 'Деактивировать' : 'Активировать';
+        }
+      } catch(e) {
+        alert('Ошибка: ' + e.message);
+        btn.textContent = currentlyActive ? 'Деактивировать' : 'Активировать';
+      }
+      btn.disabled = false;
+    }
+
     // ── plan price edit ───────────────────────────────────────────────────────
     var editingPlanId = null;
 
@@ -910,12 +952,30 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     if (!auth.ok) return;
 
     const { id } = request.params as { id: string };
-    const body = request.body as { price?: unknown };
+    const body = request.body as { price?: unknown; isActive?: unknown };
 
-    const price = Number(body.price);
-    if (!body.price || isNaN(price) || price <= 0) {
-      await reply.status(400).send({ error: "price must be a positive number" });
+    if (body.price === undefined && body.isActive === undefined) {
+      await reply.status(400).send({ error: "provide price or isActive" });
       return;
+    }
+
+    const data: { price?: number; isActive?: boolean } = {};
+
+    if (body.price !== undefined) {
+      const price = Number(body.price);
+      if (isNaN(price) || price <= 0) {
+        await reply.status(400).send({ error: "price must be a positive number" });
+        return;
+      }
+      data.price = price;
+    }
+
+    if (body.isActive !== undefined) {
+      if (typeof body.isActive !== "boolean") {
+        await reply.status(400).send({ error: "isActive must be a boolean" });
+        return;
+      }
+      data.isActive = body.isActive;
     }
 
     const plan = await prisma.plan.findUnique({ where: { id } });
@@ -924,11 +984,13 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       return;
     }
 
-    const updated = await prisma.plan.update({
-      where: { id },
-      data: { price },
-    });
+    const updated = await prisma.plan.update({ where: { id }, data });
 
-    await reply.send({ id: updated.id, name: updated.name, price: Number(updated.price) });
+    await reply.send({
+      id: updated.id,
+      name: updated.name,
+      price: Number(updated.price),
+      isActive: updated.isActive,
+    });
   });
 }
