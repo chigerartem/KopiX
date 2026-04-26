@@ -5,10 +5,11 @@ const prisma = createPrismaClient();
 async function seed(): Promise<void> {
   console.warn("Seeding database...");
 
-  // Subscription plans
+  // Subscription plans — created only if missing. The admin panel owns plan
+  // state (price + isActive) at runtime; we never overwrite it on deploy.
   await prisma.plan.upsert({
     where: { id: "plan-trial-7d" },
-    update: { isActive: false },
+    update: {},
     create: {
       id: "plan-trial-7d",
       name: "Trial",
@@ -21,7 +22,7 @@ async function seed(): Promise<void> {
 
   await prisma.plan.upsert({
     where: { id: "plan-monthly-30d" },
-    update: { name: "Monthly", price: 10, currency: "USDT", durationDays: 30, isActive: true },
+    update: {},
     create: {
       id: "plan-monthly-30d",
       name: "Monthly",
@@ -34,7 +35,7 @@ async function seed(): Promise<void> {
 
   await prisma.plan.upsert({
     where: { id: "plan-quarterly-90d" },
-    update: { isActive: false },
+    update: {},
     create: {
       id: "plan-quarterly-90d",
       name: "Quarterly",
