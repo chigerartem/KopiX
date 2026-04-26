@@ -234,6 +234,25 @@ model Position {
 // Daily P&L snapshots
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Admin audit log
+// ---------------------------------------------------------------------------
+
+model AdminAuditLog {
+  id          String   @id @default(uuid())
+  action      String   @db.VarChar(50)
+  /// Tail (last 8 chars) of admin secret used; never store the full secret.
+  actorSuffix String   @db.VarChar(16)
+  /// IP of the request, derived via Fastify trustProxy.
+  ip          String?  @db.VarChar(45)
+  /// JSON details — recipient list size, message preview, plan id, etc.
+  details     Json?
+  createdAt   DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([action, createdAt])
+  @@map("admin_audit_log")
+}
+
 model PnlSnapshot {
   id            String   @id @default(uuid())
   subscriberId  String

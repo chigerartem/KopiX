@@ -12,7 +12,13 @@ import { createPrismaClient, Prisma, type Subscriber } from "@kopix/db";
 import { executeForSubscriber } from "./subscriberExecutor.js";
 import { Semaphore } from "./semaphore.js";
 import { logger } from "../logger.js";
-import { signalsProcessedTotal, tradesExecutedTotal } from "../metrics.js";
+import {
+  signalsProcessedTotal,
+  tradesExecutedTotal,
+  signalEndToEndLatencySeconds,
+  subscribersPerSignal,
+  subscriberExecutionSeconds,
+} from "../metrics.js";
 
 // How many subscriber executions run in parallel inside one signal.
 // Tuned for ~5000 subscribers per master trade. The BingX rate limiter
@@ -29,7 +35,11 @@ const prisma = createPrismaClient();
  * Called by the signal consumer for each stream entry.
  */
 export async function processSignal(signal: TradeSignal): Promise<void> {
-  const log = logger.child({ signalId: signal.id, symbol: signal.symbol });
+  const log = logger.child({
+    signalId: signal.id,
+    symbol: signal.symbol,
+    correlationId: signal.correlationId,
+  });
   log.info({ event: "processor.start", signalType: signal.signalType }, "Processing signal");
 
   // Persist signal record first
@@ -70,6 +80,7 @@ export async function processSignal(signal: TradeSignal): Promise<void> {
   }
 
   log.info({ event: "processor.subscribers_found", count: subscribers.length });
+  subscribersPerSignal.observe(subscribers.length);
 
   // Fresh semaphore per signal — prevents the pool from leaking slots between
   // signals if a prior processing call was cancelled mid-flight, and keeps
@@ -87,16 +98,24 @@ export async function processSignal(signal: TradeSignal): Promise<void> {
     const results = await Promise.allSettled(
       batch.map((subscriber: Subscriber) =>
         semaphore.run(async () => {
+          const subStart = Date.now();
+          let outcome = "success";
           try {
             // Trade execution + position write happen atomically inside
             // executeForSubscriber (single Prisma transaction).
             await executeForSubscriber(signal, subscriber);
           } catch (err: unknown) {
+            outcome = "error";
             logger.error(
               { event: "processor.subscriber_error", subscriberId: subscriber.id, err },
               "Unhandled error for subscriber",
             );
             throw err;
+          } finally {
+            subscriberExecutionSeconds.observe(
+              { status: outcome },
+              (Date.now() - subStart) / 1000,
+            );
           }
         }),
       ),
@@ -131,6 +150,10 @@ export async function processSignal(signal: TradeSignal): Promise<void> {
   }
 
   signalsProcessedTotal.inc({ status: totalFailed === 0 ? "success" : "partial_failure" });
+  // E2E latency: master event timestamp → all subscribers handled.
+  if (signal.timestamp > 0) {
+    signalEndToEndLatencySeconds.observe((Date.now() - signal.timestamp) / 1000);
+  }
   log.info(
     {
       event: "processor.complete",

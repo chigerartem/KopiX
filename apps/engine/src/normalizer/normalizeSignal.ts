@@ -125,8 +125,12 @@ export function normalizeSignal(raw: BingXRawEvent): TradeSignal | null {
     masterSize,
     masterPositionId: o.c ?? o.i ?? "",
     timestamp: o.T ?? Date.now(),
+    correlationId: randomUUID(),
   };
 
-  logger.info({ event: "signal.normalised", signal }, "Trade signal normalised");
+  logger.info(
+    { event: "signal.normalised", correlationId: signal.correlationId, signal },
+    "Trade signal normalised",
+  );
   return signal;
 }

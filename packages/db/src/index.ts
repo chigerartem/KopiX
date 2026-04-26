@@ -8,6 +8,7 @@ export type {
   CopiedTrade,
   Position,
   PnlSnapshot,
+  AdminAuditLog,
 } from "../generated/client/index.js";
 
 export { createPrismaClient } from "./client.js";

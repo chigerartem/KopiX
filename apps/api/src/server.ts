@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import rateLimit from "@fastify/rate-limit";
@@ -19,6 +20,25 @@ export async function buildServer() {
       name: "api-server",
     },
     trustProxy: true,
+    // Correlation ID per request: trust an inbound x-correlation-id header
+    // (so callers — bot, mini-app, webhook origin — can stitch traces),
+    // otherwise generate a fresh UUID. Fastify auto-injects this into every
+    // request.log.* call as `reqId`.
+    genReqId: (req) => {
+      const inbound = req.headers["x-correlation-id"];
+      if (typeof inbound === "string" && /^[A-Za-z0-9_-]{8,128}$/.test(inbound)) {
+        return inbound;
+      }
+      return randomUUID();
+    },
+    requestIdHeader: "x-correlation-id",
+    requestIdLogLabel: "correlationId",
+  });
+
+  // Echo the correlation ID back to the caller so they can grep their
+  // own logs for the same value if they need support.
+  app.addHook("onSend", async (request, reply) => {
+    reply.header("x-correlation-id", request.id);
   });
 
   // CORS — fail closed. In production, CORS_ORIGIN must be set explicitly

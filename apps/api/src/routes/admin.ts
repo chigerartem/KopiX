@@ -40,6 +40,31 @@ function statusBadge(status: string): string {
 type AuthSource = "header" | "query";
 
 /**
+ * Append-only audit log for every privileged admin action. Stores the LAST
+ * 8 chars of the admin secret used so we can attribute actions across
+ * rotations without ever persisting the full secret a second time.
+ */
+async function audit(
+  action: string,
+  request: FastifyRequest,
+  token: string,
+  details?: Record<string, unknown>,
+): Promise<void> {
+  try {
+    await prisma.adminAuditLog.create({
+      data: {
+        action,
+        actorSuffix: token.slice(-8),
+        ip: request.ip,
+        details: (details ?? null) as never,
+      },
+    });
+  } catch (err: unknown) {
+    request.log.warn({ event: "admin.audit_failed", action, err: String(err) }, "Failed to write audit log");
+  }
+}
+
+/**
  * Admin authentication.
  *
  *   - Authorization: Bearer <token>  (preferred — never logged by Caddy/nginx access logs)
@@ -978,6 +1003,20 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       await new Promise((r) => setTimeout(r, 50));
     }
 
+    await audit(
+      body.telegramId ? "broadcast.dm" : "broadcast.bulk",
+      request,
+      auth.token,
+      {
+        targets: targets.length,
+        sent,
+        failed,
+        ...(body.telegramId ? { telegramId: body.telegramId } : { filter: body.filter ?? null }),
+        messagePreview: body.message?.slice(0, 200) ?? "",
+        hasPhoto: Boolean(body.photoUrl),
+      },
+    );
+
     await reply.send({ sent, failed, total: targets.length });
   });
 
@@ -1020,6 +1059,12 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     }
 
     const updated = await prisma.plan.update({ where: { id }, data });
+
+    await audit("plan.update", request, auth.token, {
+      planId: id,
+      changes: data,
+      previous: { price: Number(plan.price), isActive: plan.isActive },
+    });
 
     await reply.send({
       id: updated.id,

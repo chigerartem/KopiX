@@ -18,7 +18,7 @@ import { normalizeSignal } from "./normalizer/normalizeSignal.js";
 import { publishSignal } from "./redis/streamPublisher.js";
 import { startSignalConsumer } from "./consumer/signalConsumer.js";
 import { processSignal } from "./engine/signalProcessor.js";
-import { startMetricsServer, signalsPublishedTotal } from "./metrics.js";
+import { startMetricsServer, signalsPublishedTotal, signalIngestLatencySeconds } from "./metrics.js";
 import { logger } from "./logger.js";
 
 async function main(): Promise<void> {
@@ -46,7 +46,12 @@ async function main(): Promise<void> {
     if (!signal) return;
 
     publishSignal(signal)
-      .then(() => signalsPublishedTotal.inc())
+      .then(() => {
+        signalsPublishedTotal.inc();
+        if (signal.timestamp > 0) {
+          signalIngestLatencySeconds.observe((Date.now() - signal.timestamp) / 1000);
+        }
+      })
       .catch((err: unknown) => {
         logger.error({ event: "engine.publish_error", err }, "Failed to publish signal");
       });

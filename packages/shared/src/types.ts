@@ -10,6 +10,13 @@ export interface TradeSignal {
   masterPositionId: string;
   timestamp: number;
   streamId?: string;
+  /**
+   * Correlation ID — assigned at signal normalization, propagates through
+   * Redis stream, executor, position writes, and downstream notification
+   * pubsub. Lets a single grep stitch every action triggered by one master
+   * trade across all services.
+   */
+  correlationId?: string;
 }
 
 export interface Credentials {

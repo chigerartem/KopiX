@@ -33,6 +33,7 @@ export async function publishSignal(signal: TradeSignal): Promise<string> {
     "masterSize", String(signal.masterSize),
     "masterPositionId", signal.masterPositionId,
     "timestamp", String(signal.timestamp),
+    "correlationId", signal.correlationId ?? "",
   );
 
   if (!streamId) throw new Error("publishSignal: xadd returned null");
@@ -59,7 +60,7 @@ export function deserialiseStreamEntry(fields: string[]): TradeSignal {
     }
   }
 
-  return {
+  const out: TradeSignal = {
     id: map["id"] ?? "",
     symbol: map["symbol"] ?? "",
     side: (map["side"] ?? "") as TradeSignal["side"],
@@ -69,4 +70,6 @@ export function deserialiseStreamEntry(fields: string[]): TradeSignal {
     masterPositionId: map["masterPositionId"] ?? "",
     timestamp: parseInt(map["timestamp"] ?? "0", 10),
   };
+  if (map["correlationId"]) out.correlationId = map["correlationId"];
+  return out;
 }
