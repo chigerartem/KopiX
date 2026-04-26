@@ -57,6 +57,14 @@ async function main() {
   const data = (await res.json()) as ApiResponse;
 
   if (!res.ok || !data.ok) {
+    if (data.error?.name === "METHOD_NOT_FOUND" || data.error?.code === 405) {
+      console.warn(
+        `[cryptobot] setWebhook not available via API — set it manually in @CryptoBot:\n` +
+        `  Crypto Pay → My Apps → your app → Webhooks → ${webhookUrl}`,
+      );
+      // Not fatal: the webhook may already be configured through the bot UI
+      return;
+    }
     console.error("setWebhook failed:", JSON.stringify(data));
     process.exit(1);
   }
