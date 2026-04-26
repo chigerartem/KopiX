@@ -10,7 +10,6 @@ import type { TradeSignal } from "@kopix/shared";
 import { SignalType } from "@kopix/shared";
 import { createPrismaClient, Prisma, type Subscriber } from "@kopix/db";
 import { executeForSubscriber } from "./subscriberExecutor.js";
-import { openPosition, closePosition } from "./positionTracker.js";
 import { Semaphore } from "./semaphore.js";
 import { logger } from "../logger.js";
 import { signalsProcessedTotal, tradesExecutedTotal } from "../metrics.js";
@@ -39,6 +38,7 @@ export async function processSignal(signal: TradeSignal): Promise<void> {
       masterSize: signal.masterSize,
       masterPositionId: signal.masterPositionId,
       rawPayload: signal as unknown as Prisma.InputJsonValue,
+      signaledAt: new Date(signal.timestamp),
     },
   });
 
@@ -74,33 +74,18 @@ export async function processSignal(signal: TradeSignal): Promise<void> {
     subscribers.map((subscriber: Subscriber) =>
       semaphore.run(async () => {
         try {
+          // Trade execution + position write happen atomically inside
+          // executeForSubscriber (single Prisma transaction). The processor
+          // only counts the final status here.
           await executeForSubscriber(signal, subscriber);
 
-          // Update position tracking after execution
           const trade = await prisma.copiedTrade.findUnique({
             where: {
               signalId_subscriberId: { signalId: signal.id, subscriberId: subscriber.id },
             },
+            select: { status: true },
           });
-
           tradesExecutedTotal.inc({ status: trade?.status ?? "unknown" });
-
-          if (trade?.status === "filled" && trade.executedPrice && trade.executedSize) {
-            const price = Number(trade.executedPrice);
-            const size = Number(trade.executedSize);
-
-            if (
-              signal.signalType === SignalType.OpenLong ||
-              signal.signalType === SignalType.OpenShort
-            ) {
-              await openPosition(signal, subscriber.id, price, size);
-            } else if (
-              signal.signalType === SignalType.CloseLong ||
-              signal.signalType === SignalType.CloseShort
-            ) {
-              await closePosition(signal, subscriber.id, price);
-            }
-          }
         } catch (err: unknown) {
           logger.error(
             { event: "processor.subscriber_error", subscriberId: subscriber.id, err },

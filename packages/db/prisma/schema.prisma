@@ -160,11 +160,16 @@ model TradeSignal {
   masterSize       Decimal    @db.Decimal(20, 8)
   masterPositionId String     @db.VarChar(100)
   rawPayload       Json
+  /// Timestamp from the master exchange event (BingX `o.T`). Used as the
+  /// authoritative event time for position openedAt and latency metrics.
+  signaledAt       DateTime   @default(now()) @db.Timestamptz(6)
+  /// When this row was written to our DB (post-normalization).
   createdAt        DateTime   @default(now()) @db.Timestamptz(6)
 
   copiedTrades CopiedTrade[]
   positions    Position[]
 
+  @@index([createdAt])
   @@map("trade_signals")
 }
 

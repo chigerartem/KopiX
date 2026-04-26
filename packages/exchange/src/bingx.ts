@@ -165,13 +165,19 @@ export async function placeMarketOrder(
 ): Promise<OrderResult> {
   const exchange = buildExchange(credentials);
 
+  const params: Record<string, unknown> = { positionSide: order.positionSide };
+  if (order.clientOrderId) {
+    // BingX accepts clientOrderId via this exact parameter name in ccxt.
+    params["clientOrderId"] = order.clientOrderId;
+  }
+
   const raw = await exchange.createOrder(
     order.symbol,
     "market",
     order.side,
     order.amount,
     undefined,
-    { positionSide: order.positionSide },
+    params,
   );
 
   const execPrice =

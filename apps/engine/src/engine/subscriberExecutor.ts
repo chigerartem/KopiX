@@ -21,6 +21,7 @@ import { placeMarketOrder } from "@kopix/exchange";
 import { decrypt } from "@kopix/crypto";
 import { createPrismaClient } from "@kopix/db";
 import { calculateOrderSize } from "./calculateOrderSize.js";
+import { openPositionTx, closePositionTx } from "./positionTracker.js";
 import { getRedisClient } from "../redis/redisClient.js";
 import { logger } from "../logger.js";
 import type { Subscriber } from "@kopix/db";
@@ -52,6 +53,17 @@ async function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+/**
+ * BingX limits clientOrderId to ~32 ASCII chars and rejects most special
+ * characters. Build a deterministic compact key from signal+subscriber UUIDs.
+ */
+function buildClientOrderId(signalId: string, subscriberId: string): string {
+  // Strip dashes from UUIDs and take first 12 chars of each → 24 chars + "k"
+  const a = signalId.replace(/-/g, "").slice(0, 12);
+  const b = subscriberId.replace(/-/g, "").slice(0, 12);
+  return `k${a}${b}`;
+}
+
 export async function executeForSubscriber(
   signal: TradeSignal,
   subscriber: Subscriber,
@@ -76,10 +88,39 @@ export async function executeForSubscriber(
       log.debug({ event: "executor.already_skipped" }, "Trade was skipped — not retrying");
       return;
     }
-    // pending / failed → fall through and (re)try
+    if (existing.status === "partial" && existing.exchangeOrderId) {
+      // Partial fill on the exchange: a retry would issue a NEW order for the
+      // unfilled remainder, doubling exposure. Treat partials as terminal —
+      // the operator should manually decide whether to top up.
+      log.info(
+        { event: "executor.partial_skip", tradeId: existing.id },
+        "Trade is partially filled — not retrying",
+      );
+      return;
+    }
+    // pending / failed (no exchangeOrderId) → fall through and (re)try
   }
 
-  // 2. Decrypt credentials
+  // 2. Re-check subscription validity at execution time.
+  //    The processor selected this subscriber up to ~hundreds of ms ago; in
+  //    that window the subscription may have expired (we run order placement
+  //    sequentially per signal, and BingX latency under load can stretch).
+  //    Without this check we could place a paid trade for a non-paying user.
+  const activeSub = await prisma.subscription.findFirst({
+    where: {
+      subscriberId: subscriber.id,
+      status: "active",
+      expiresAt: { gt: new Date() },
+    },
+    select: { id: true },
+  });
+  if (!activeSub) {
+    log.info({ event: "executor.subscription_expired" }, "Subscription expired — skipping");
+    await recordSkipped(signal, subscriber.id, "subscription_expired");
+    return;
+  }
+
+  // 3. Decrypt credentials
   const encKey = process.env["APP_ENCRYPTION_KEY"];
   if (!encKey) throw new Error("APP_ENCRYPTION_KEY not set");
   if (!subscriber.apiKeyEncrypted || !subscriber.apiSecretEncrypted) {
@@ -130,29 +171,67 @@ export async function executeForSubscriber(
   let lastError: unknown;
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     try {
+      // clientOrderId derived from (signalId, subscriberId) so any retry
+      // (e.g. after a crash before we recorded the exchange response) hits
+      // the same idempotency key on BingX. BingX limits clientOrderId to ~32
+      // ASCII chars, so we hash if needed.
+      const clientOrderId = buildClientOrderId(signal.id, subscriber.id);
+
       const result = await placeMarketOrder(credentials, {
         symbol: signal.symbol,
         side: signal.side === OrderSide.Buy ? "buy" : "sell",
         amount: sizeResult.contractSize,
         positionSide: resolvePositionSide(signal.signalType),
+        clientOrderId,
       });
+
+      // Detect partial fills: the exchange returned less than what we asked
+      // for. We must NOT retry (would create a second order); flag as partial
+      // so the operator can decide.
+      const isPartial =
+        result.executedAmount > 0 &&
+        result.executedAmount + 1e-8 < sizeResult.contractSize;
 
       const slippagePct =
         signal.masterPrice > 0
           ? Math.abs(result.executedPrice - signal.masterPrice) / signal.masterPrice
           : null;
 
-      // 5. Record result
-      await prisma.copiedTrade.update({
-        where: { id: tradeRecord.id },
-        data: {
-          executedSize: result.executedAmount,
-          executedPrice: result.executedPrice,
-          slippagePct: slippagePct ?? null,
-          exchangeOrderId: result.orderId,
-          status: "filled",
-          executedAt: new Date(),
-        },
+      // 5. Record trade + write position atomically.
+      //    Without this transaction, a crash between the trade update and the
+      //    position write would leave a "filled" trade with no Position row,
+      //    silently corrupting P&L tracking.
+      await prisma.$transaction(async (tx) => {
+        await tx.copiedTrade.update({
+          where: { id: tradeRecord.id },
+          data: {
+            executedSize: result.executedAmount,
+            executedPrice: result.executedPrice,
+            slippagePct: slippagePct ?? null,
+            exchangeOrderId: result.orderId,
+            status: isPartial ? "partial" : "filled",
+            failureReason: isPartial ? "partial_fill" : null,
+            executedAt: new Date(),
+          },
+        });
+
+        if (
+          signal.signalType === SignalType.OpenLong ||
+          signal.signalType === SignalType.OpenShort
+        ) {
+          await openPositionTx(
+            tx,
+            signal,
+            subscriber.id,
+            result.executedPrice,
+            result.executedAmount,
+          );
+        } else if (
+          signal.signalType === SignalType.CloseLong ||
+          signal.signalType === SignalType.CloseShort
+        ) {
+          await closePositionTx(tx, signal, subscriber.id, result.executedPrice);
+        }
       });
 
       log.info(

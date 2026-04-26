@@ -28,6 +28,12 @@ export interface OrderParams {
   side: "buy" | "sell";
   amount: number;
   positionSide: "LONG" | "SHORT";
+  /**
+   * Optional client-supplied order ID for idempotency on retry. BingX
+   * rejects duplicates, which lets us avoid double execution after a crash
+   * between the DB write and exchange call.
+   */
+  clientOrderId?: string;
 }
 
 export interface OrderResult {
