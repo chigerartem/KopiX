@@ -20,7 +20,7 @@ export function startExpiryJob(): void {
  * already visible (subscriber stays active) or it commits AFTER this job and
  * its own DB write keeps the subscriber active.
  */
-async function runExpiry(): Promise<void> {
+export async function runExpiry(): Promise<void> {
   try {
     const result = await prisma.$transaction(async (tx) => {
       const expiredCount: number = await tx.$executeRaw`
