@@ -142,6 +142,28 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     }));
     const chartJson = JSON.stringify(chartData);
 
+    // ── Plans ──────────────────────────────────────────────────────────────
+    const plans = await prisma.plan.findMany({ orderBy: { price: "asc" } });
+    const planRows = plans
+      .map(
+        (p) => `
+        <tr id="plan-row-${esc(p.id)}">
+          <td>${esc(p.id.slice(0, 8))}…</td>
+          <td>${esc(p.name)}</td>
+          <td id="plan-price-${esc(p.id)}">${Number(p.price).toFixed(2)}</td>
+          <td>${esc(p.currency)}</td>
+          <td>${p.durationDays} д.</td>
+          <td>${p.isActive ? '<span style="color:#22c55e">✅ Активен</span>' : '<span style="color:#94a3b8">❌ Скрыт</span>'}</td>
+          <td>
+            <button class="edit-price-btn" onclick="openEditPrice('${esc(p.id)}',${Number(p.price)},${JSON.stringify(esc(p.name))})"
+              style="background:#1d4ed8;color:#fff;border:none;border-radius:6px;padding:5px 14px;font-size:12px;cursor:pointer">
+              Изменить цену
+            </button>
+          </td>
+        </tr>`,
+      )
+      .join("");
+
     const rows = subscribers
       .map((s, i) => {
         const sub = s.subscriptions[0];
@@ -302,6 +324,44 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       <button class="chart-tab" onclick="setChart('active',this)">📈 Активные подписки</button>
     </div>
     <canvas id="adminChart" style="max-height:300px"></canvas>
+  </div>
+
+  <!-- ── Plans ── -->
+  <div class="section-title">Планы подписки</div>
+  <div class="table-wrap" style="margin-bottom:28px">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th><th>Название</th><th>Цена</th><th>Валюта</th><th>Период</th><th>Статус</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        ${planRows || '<tr><td colspan="7" style="text-align:center;padding:24px;color:#64748b">Планов пока нет</td></tr>'}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Edit price modal -->
+  <div id="price-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:999;align-items:center;justify-content:center">
+    <div style="background:#1e293b;border-radius:12px;padding:28px 32px;min-width:340px;max-width:440px;width:90%">
+      <h2 style="margin-bottom:4px">Изменить цену</h2>
+      <p id="modal-plan-name" style="color:#64748b;font-size:13px;margin-bottom:20px"></p>
+      <label style="font-size:13px;color:#94a3b8;display:block;margin-bottom:6px">Новая цена (USDT)</label>
+      <input id="modal-price-input" type="number" min="0.01" step="0.01"
+        style="background:#0f172a;border:1px solid #334155;color:#e2e8f0;border-radius:6px;
+               padding:10px 14px;font-size:16px;outline:none;width:100%;margin-bottom:20px">
+      <div style="display:flex;gap:10px;justify-content:flex-end">
+        <button onclick="closeEditPrice()"
+          style="background:#334155;color:#e2e8f0;border:none;border-radius:6px;padding:9px 20px;font-size:13px;cursor:pointer">
+          Отмена
+        </button>
+        <button id="modal-save-btn" onclick="savePrice()"
+          style="background:#3b82f6;color:#fff;border:none;border-radius:6px;padding:9px 20px;font-size:13px;font-weight:600;cursor:pointer">
+          Сохранить
+        </button>
+      </div>
+      <div id="modal-res" style="margin-top:12px;font-size:13px;font-weight:500"></div>
+    </div>
   </div>
 
   <!-- ── Filters ── -->
@@ -650,6 +710,65 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       btn.disabled = false;
       btn.textContent = 'Отправить рассылку';
     }
+    // ── plan price edit ───────────────────────────────────────────────────────
+    var editingPlanId = null;
+
+    function openEditPrice(id, currentPrice, planName) {
+      editingPlanId = id;
+      document.getElementById('modal-plan-name').textContent = planName;
+      document.getElementById('modal-price-input').value = currentPrice.toFixed(2);
+      document.getElementById('modal-res').textContent = '';
+      var m = document.getElementById('price-modal');
+      m.style.display = 'flex';
+      document.getElementById('modal-price-input').focus();
+    }
+
+    function closeEditPrice() {
+      document.getElementById('price-modal').style.display = 'none';
+      editingPlanId = null;
+    }
+
+    document.getElementById('price-modal').addEventListener('click', function(e) {
+      if (e.target === this) closeEditPrice();
+    });
+
+    async function savePrice() {
+      if (!editingPlanId) return;
+      var raw = document.getElementById('modal-price-input').value.trim();
+      var price = parseFloat(raw);
+      if (isNaN(price) || price <= 0) {
+        document.getElementById('modal-res').style.color = '#ef4444';
+        document.getElementById('modal-res').textContent = '❌ Введите корректную цену > 0';
+        return;
+      }
+      var btn = document.getElementById('modal-save-btn');
+      var res = document.getElementById('modal-res');
+      btn.disabled = true;
+      btn.textContent = 'Сохраняем…';
+      res.textContent = '';
+      try {
+        var resp = await fetch('/api/admin/plans/' + encodeURIComponent(editingPlanId) + '?token=' + encodeURIComponent(TOK), {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ price: price })
+        });
+        var data = await resp.json();
+        if (resp.ok) {
+          document.getElementById('plan-price-' + editingPlanId).textContent = Number(data.price).toFixed(2);
+          res.style.color = '#22c55e';
+          res.textContent = '✅ Цена обновлена';
+          setTimeout(closeEditPrice, 800);
+        } else {
+          res.style.color = '#ef4444';
+          res.textContent = '❌ ' + (data.error || resp.status);
+        }
+      } catch(e) {
+        res.style.color = '#ef4444';
+        res.textContent = '❌ ' + e.message;
+      }
+      btn.disabled = false;
+      btn.textContent = 'Сохранить';
+    }
   </script>
 </body>
 </html>`;
@@ -779,5 +898,33 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     }
 
     await reply.send({ sent, failed, total: targets.length });
+  });
+
+  // ─── PATCH /api/admin/plans/:id ─────────────────────────────────────────
+  app.patch("/api/admin/plans/:id", async (request, reply) => {
+    const auth = checkAuth(request, reply);
+    if (!auth.ok) return;
+
+    const { id } = request.params as { id: string };
+    const body = request.body as { price?: unknown };
+
+    const price = Number(body.price);
+    if (!body.price || isNaN(price) || price <= 0) {
+      await reply.status(400).send({ error: "price must be a positive number" });
+      return;
+    }
+
+    const plan = await prisma.plan.findUnique({ where: { id } });
+    if (!plan) {
+      await reply.status(404).send({ error: "Plan not found" });
+      return;
+    }
+
+    const updated = await prisma.plan.update({
+      where: { id },
+      data: { price },
+    });
+
+    await reply.send({ id: updated.id, name: updated.name, price: Number(updated.price) });
   });
 }
