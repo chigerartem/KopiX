@@ -2,6 +2,7 @@ import { validateEnv } from "@kopix/shared";
 import { buildServer } from "./server.js";
 import { logger } from "./logger.js";
 import { startExpiryJob } from "./jobs/expiry.js";
+import { startKeyRevalidationJob } from "./jobs/revalidateKeys.js";
 
 const PORT = parseInt(process.env["PORT"] ?? "3000", 10);
 const HOST = process.env["HOST"] ?? "0.0.0.0";
@@ -14,6 +15,7 @@ async function main(): Promise<void> {
   logger.info({ event: "api.started", port: PORT }, `API server listening on ${HOST}:${PORT}`);
 
   startExpiryJob();
+  startKeyRevalidationJob();
 
   const shutdown = async (): Promise<void> => {
     logger.info({ event: "api.shutdown" }, "Shutting down API server");

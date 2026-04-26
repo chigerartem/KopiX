@@ -21,7 +21,12 @@ import { placeMarketOrder } from "@kopix/exchange";
 import { decrypt } from "@kopix/crypto";
 import { createPrismaClient } from "@kopix/db";
 import { calculateOrderSize } from "./calculateOrderSize.js";
-import { openPositionTx, closePositionTx } from "./positionTracker.js";
+import {
+  openPositionTx,
+  closePositionTx,
+  increasePositionTx,
+  decreasePositionTx,
+} from "./positionTracker.js";
 import { getRedisClient } from "../redis/redisClient.js";
 import { logger } from "../logger.js";
 import type { Subscriber } from "@kopix/db";
@@ -231,6 +236,28 @@ export async function executeForSubscriber(
           signal.signalType === SignalType.CloseShort
         ) {
           await closePositionTx(tx, signal, subscriber.id, result.executedPrice);
+        } else if (
+          signal.signalType === SignalType.IncreaseLong ||
+          signal.signalType === SignalType.IncreaseShort
+        ) {
+          await increasePositionTx(
+            tx,
+            signal,
+            subscriber.id,
+            result.executedPrice,
+            result.executedAmount,
+          );
+        } else if (
+          signal.signalType === SignalType.DecreaseLong ||
+          signal.signalType === SignalType.DecreaseShort
+        ) {
+          await decreasePositionTx(
+            tx,
+            signal,
+            subscriber.id,
+            result.executedPrice,
+            result.executedAmount,
+          );
         }
       });
 
@@ -286,17 +313,34 @@ export async function executeForSubscriber(
         return;
       }
 
-      // Invalid key — suspend subscriber, no retry
+      // Invalid key — disconnect & notify subscriber, no retry.
+      // Clearing the encrypted credentials prevents the engine from continuing
+      // to hammer BingX with a bad key on every subsequent signal.
       if (msg.includes("AuthenticationError") || msg.includes("PermissionDenied") || msg.includes("401") || msg.includes("403")) {
-        await prisma.subscriber.update({
-          where: { id: subscriber.id },
-          data: { status: "suspended" },
-        });
-        await prisma.copiedTrade.update({
-          where: { id: tradeRecord.id },
-          data: { status: "failed", failureReason: "invalid_api_key" },
-        });
-        log.warn({ event: "executor.suspended", err }, "Subscriber suspended — invalid API key");
+        await prisma.$transaction([
+          prisma.subscriber.update({
+            where: { id: subscriber.id },
+            data: {
+              status: "suspended",
+              apiKeyEncrypted: null,
+              apiSecretEncrypted: null,
+            },
+          }),
+          prisma.copiedTrade.update({
+            where: { id: tradeRecord.id },
+            data: { status: "failed", failureReason: "invalid_api_key" },
+          }),
+        ]);
+        // Tell the bot to notify the user. Soft-fail: never block the executor.
+        try {
+          await getRedisClient().publish(
+            `account:${subscriber.id}`,
+            JSON.stringify({ type: "key_revoked", reason: "auth_failed" }),
+          );
+        } catch (pubErr: unknown) {
+          log.warn({ event: "executor.notify_publish_failed", err: pubErr }, "Failed to publish key-revoked event");
+        }
+        log.warn({ event: "executor.key_revoked", err }, "Subscriber key revoked — credentials cleared");
         return;
       }
 

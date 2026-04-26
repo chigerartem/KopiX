@@ -1,7 +1,19 @@
 import type { Bot } from "grammy";
+import { InlineKeyboard } from "grammy";
 import { logger } from "../logger.js";
 import { prisma } from "../prisma.js";
 import { redis } from "../redis.js";
+import { config } from "../config.js";
+
+/**
+ * Build an "Open Mini App" button. Subscriptions are purchased inside the
+ * Mini App (architecture rule), so every expiry message must drive there.
+ * Falls back to no-keyboard if MINIAPP_URL is not configured.
+ */
+function miniAppKeyboard(label: string): InlineKeyboard | undefined {
+  if (!config.miniAppUrl) return undefined;
+  return new InlineKeyboard().webApp(label, config.miniAppUrl);
+}
 
 const INTERVAL_MS = 15 * 60 * 1000;
 // How far back to scan for expired subscriptions. With Redis dedup, re-runs are no-ops.
@@ -43,7 +55,8 @@ async function notify24h(bot: Bot, now: Date): Promise<void> {
     const sent = await safeSend(
       bot,
       Number(sub.subscriber.telegramId),
-      `⚠️ Ваша подписка «${sub.plan.name}» истекает примерно через 24 часа.\n\nОтправьте /subscribe, чтобы продлить её заранее.`,
+      `⚠️ Your KopiX «${sub.plan.name}» subscription expires in about 24 hours.\n\nRenew now in the Mini App to avoid losing access.`,
+      miniAppKeyboard("Open Mini App"),
     );
 
     if (sent) await redis.set(key, "1", "EX", 48 * 3600);
@@ -66,7 +79,8 @@ async function notify1h(bot: Bot, now: Date): Promise<void> {
     const sent = await safeSend(
       bot,
       Number(sub.subscriber.telegramId),
-      `⚠️ Ваша подписка «${sub.plan.name}» истекает менее чем через час.\n\nОтправьте /subscribe сейчас, чтобы не потерять доступ.`,
+      `⚠️ Your KopiX «${sub.plan.name}» subscription expires in less than 1 hour.\n\nRenew in the Mini App now to keep copy-trading active.`,
+      miniAppKeyboard("Open Mini App"),
     );
 
     if (sent) await redis.set(key, "1", "EX", 2 * 3600);
@@ -90,16 +104,22 @@ async function notifyExpired(bot: Bot, now: Date): Promise<void> {
     const sent = await safeSend(
       bot,
       Number(sub.subscriber.telegramId),
-      "⏰ Ваша подписка KopiX истекла. Копирование сделок остановлено.\n\nОтправьте /subscribe, чтобы продлить.",
+      "⏰ Your KopiX subscription has expired. Copy-trading is now paused.\n\nRenew in the Mini App to resume.",
+      miniAppKeyboard("Open Mini App"),
     );
 
     if (sent) await redis.set(key, "1", "EX", 7 * 24 * 3600);
   }
 }
 
-async function safeSend(bot: Bot, telegramId: number, text: string): Promise<boolean> {
+async function safeSend(
+  bot: Bot,
+  telegramId: number,
+  text: string,
+  keyboard?: InlineKeyboard,
+): Promise<boolean> {
   try {
-    await bot.api.sendMessage(telegramId, text);
+    await bot.api.sendMessage(telegramId, text, keyboard ? { reply_markup: keyboard } : undefined);
     return true;
   } catch (err) {
     logger.warn(

@@ -17,6 +17,7 @@ import { buildServer } from "./server.js";
 import { logger } from "./logger.js";
 import { startExpiryNotifications } from "./notifications/expiry.js";
 import { startTradeNotifier } from "./services/tradeNotifier.js";
+import { startAccountNotifier } from "./services/accountNotifier.js";
 
 async function main(): Promise<void> {
   validateEnv("bot");
@@ -51,6 +52,15 @@ async function main(): Promise<void> {
     logger.error(
       { event: "bot.trade_notifier_failed", err: String(err) },
       "Failed to start trade notifier",
+    );
+  }
+
+  try {
+    await startAccountNotifier(bot);
+  } catch (err: unknown) {
+    logger.error(
+      { event: "bot.account_notifier_failed", err: String(err) },
+      "Failed to start account notifier",
     );
   }
 
