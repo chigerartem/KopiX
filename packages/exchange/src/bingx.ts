@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { bingx as BingX, AuthenticationError, PermissionDenied, ExchangeError } from "ccxt";
 import type {
   Credentials,
@@ -6,6 +7,7 @@ import type {
   OrderParams,
   OrderResult,
 } from "./types.js";
+import { acquireToken } from "./rateLimiter.js";
 
 function buildExchange(credentials: Credentials): BingX {
   return new BingX({
@@ -18,10 +20,20 @@ function buildExchange(credentials: Credentials): BingX {
 }
 
 /**
+ * Stable bucket key per credential — so one subscriber's BingX session has
+ * its own rate-limit quota and doesn't share with the master or others.
+ * Hashes the API key (never log it) so the bucket map can't leak secrets.
+ */
+function bucketKey(credentials: Credentials): string {
+  return "bingx:" + createHash("sha256").update(credentials.apiKey).digest("hex").slice(0, 16);
+}
+
+/**
  * Validate BingX credentials by attempting to fetch the futures balance.
  * Also checks that withdraw permission is absent (required by architecture rules).
  */
 export async function validateCredentials(credentials: Credentials): Promise<ValidationResult> {
+  await acquireToken(bucketKey(credentials));
   const exchange = buildExchange(credentials);
 
   let futuresBalance: number | undefined;
@@ -142,6 +154,7 @@ export async function validateCredentials(credentials: Credentials): Promise<Val
  * Fetch the available USDT futures balance for a subscriber.
  */
 export async function getBalance(credentials: Credentials): Promise<Balance> {
+  await acquireToken(bucketKey(credentials));
   const exchange = buildExchange(credentials);
   const raw = await exchange.fetchBalance({ type: "swap" });
 
@@ -163,6 +176,7 @@ export async function placeMarketOrder(
   credentials: Credentials,
   order: OrderParams,
 ): Promise<OrderResult> {
+  await acquireToken(bucketKey(credentials));
   const exchange = buildExchange(credentials);
 
   const params: Record<string, unknown> = { positionSide: order.positionSide };

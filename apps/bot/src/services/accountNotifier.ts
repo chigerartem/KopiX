@@ -17,6 +17,7 @@ import { GrammyError, InlineKeyboard } from "grammy";
 import { logger } from "../logger.js";
 import { prisma } from "../prisma.js";
 import { config } from "../config.js";
+import { sendMessageThrottled } from "../lib/rateLimitedSender.js";
 
 type AccountEvent =
   | { type: "key_revoked"; reason: "auth_failed" | "withdraw_permission_added" };
@@ -100,7 +101,7 @@ async function handleMessage(bot: Bot, channel: string, message: string): Promis
     : undefined;
 
   try {
-    await bot.api.sendMessage(Number(telegramId), text, {
+    await sendMessageThrottled(bot, Number(telegramId), text, {
       parse_mode: "HTML",
       link_preview_options: { is_disabled: true },
       ...(keyboard ? { reply_markup: keyboard } : {}),

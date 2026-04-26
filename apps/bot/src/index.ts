@@ -18,6 +18,7 @@ import { logger } from "./logger.js";
 import { startExpiryNotifications } from "./notifications/expiry.js";
 import { startTradeNotifier } from "./services/tradeNotifier.js";
 import { startAccountNotifier } from "./services/accountNotifier.js";
+import { startThrottleMaintenance } from "./lib/rateLimitedSender.js";
 
 async function main(): Promise<void> {
   validateEnv("bot");
@@ -45,6 +46,7 @@ async function main(): Promise<void> {
   );
 
   startExpiryNotifications(bot);
+  startThrottleMaintenance();
 
   try {
     await startTradeNotifier(bot);

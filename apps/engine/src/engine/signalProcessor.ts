@@ -14,7 +14,14 @@ import { Semaphore } from "./semaphore.js";
 import { logger } from "../logger.js";
 import { signalsProcessedTotal, tradesExecutedTotal } from "../metrics.js";
 
-const CONCURRENCY = 20;
+// How many subscriber executions run in parallel inside one signal.
+// Tuned for ~5000 subscribers per master trade. The BingX rate limiter
+// (subscriberExecutor → exchange package) still gates real outbound calls,
+// so this is mostly the in-process queue depth, not BingX concurrency.
+const CONCURRENCY = Number(process.env["ENGINE_CONCURRENCY"] ?? 100);
+// Batch size for memory bounds + bulk DB queries (status counts) per chunk.
+const BATCH_SIZE = Number(process.env["ENGINE_BATCH_SIZE"] ?? 500);
+
 const prisma = createPrismaClient();
 
 /**
@@ -69,37 +76,68 @@ export async function processSignal(signal: TradeSignal): Promise<void> {
   // resource usage bounded even if the consumer becomes concurrent later.
   const semaphore = new Semaphore(CONCURRENCY);
 
-  // Run all subscribers concurrently (max CONCURRENCY at a time)
-  const results = await Promise.allSettled(
-    subscribers.map((subscriber: Subscriber) =>
-      semaphore.run(async () => {
-        try {
-          // Trade execution + position write happen atomically inside
-          // executeForSubscriber (single Prisma transaction). The processor
-          // only counts the final status here.
-          await executeForSubscriber(signal, subscriber);
+  let totalFailed = 0;
+  const startedAt = Date.now();
 
-          const trade = await prisma.copiedTrade.findUnique({
-            where: {
-              signalId_subscriberId: { signalId: signal.id, subscriberId: subscriber.id },
-            },
-            select: { status: true },
-          });
-          tradesExecutedTotal.inc({ status: trade?.status ?? "unknown" });
-        } catch (err: unknown) {
-          logger.error(
-            { event: "processor.subscriber_error", subscriberId: subscriber.id, err },
-            "Unhandled error for subscriber",
-          );
-        }
-      }),
-    ),
-  );
+  // Process subscribers in batches: bounds peak memory & log volume, and
+  // lets us emit progress events for ops visibility on big fanouts.
+  for (let i = 0; i < subscribers.length; i += BATCH_SIZE) {
+    const batch = subscribers.slice(i, i + BATCH_SIZE);
 
-  const failed = results.filter((r: PromiseSettledResult<void>) => r.status === "rejected").length;
-  signalsProcessedTotal.inc({ status: failed === 0 ? "success" : "partial_failure" });
+    const results = await Promise.allSettled(
+      batch.map((subscriber: Subscriber) =>
+        semaphore.run(async () => {
+          try {
+            // Trade execution + position write happen atomically inside
+            // executeForSubscriber (single Prisma transaction).
+            await executeForSubscriber(signal, subscriber);
+          } catch (err: unknown) {
+            logger.error(
+              { event: "processor.subscriber_error", subscriberId: subscriber.id, err },
+              "Unhandled error for subscriber",
+            );
+            throw err;
+          }
+        }),
+      ),
+    );
+
+    totalFailed += results.filter((r) => r.status === "rejected").length;
+
+    // Bulk-count outcomes by status for this batch — one DB roundtrip
+    // instead of N findUnique calls.
+    const counts = await prisma.copiedTrade.groupBy({
+      by: ["status"],
+      where: {
+        signalId: signal.id,
+        subscriberId: { in: batch.map((s) => s.id) },
+      },
+      _count: { _all: true },
+    });
+    for (const c of counts) {
+      tradesExecutedTotal.inc({ status: c.status }, c._count._all);
+    }
+
+    if (subscribers.length > BATCH_SIZE) {
+      log.info(
+        {
+          event: "processor.batch_done",
+          processed: Math.min(i + BATCH_SIZE, subscribers.length),
+          total: subscribers.length,
+        },
+        "Subscriber batch processed",
+      );
+    }
+  }
+
+  signalsProcessedTotal.inc({ status: totalFailed === 0 ? "success" : "partial_failure" });
   log.info(
-    { event: "processor.complete", total: subscribers.length, failed },
+    {
+      event: "processor.complete",
+      total: subscribers.length,
+      failed: totalFailed,
+      elapsedMs: Date.now() - startedAt,
+    },
     "Signal processing complete",
   );
 }

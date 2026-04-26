@@ -20,6 +20,7 @@ import type { Bot } from "grammy";
 import { GrammyError } from "grammy";
 import { logger } from "../logger.js";
 import { prisma } from "../prisma.js";
+import { sendMessageThrottled } from "../lib/rateLimitedSender.js";
 
 type TradeEventData = {
   id: string;
@@ -272,7 +273,7 @@ async function handleMessage(
   }
 
   try {
-    await bot.api.sendMessage(Number(telegramId), text, {
+    await sendMessageThrottled(bot, Number(telegramId), text, {
       parse_mode: "HTML",
       link_preview_options: { is_disabled: true },
     });

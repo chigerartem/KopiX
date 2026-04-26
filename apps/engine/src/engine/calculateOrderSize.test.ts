@@ -3,8 +3,10 @@ import { CopyMode } from "@kopix/shared";
 
 const getBalanceMock = vi.hoisted(() => vi.fn());
 
-vi.mock("@kopix/exchange", () => ({
-  getBalance: getBalanceMock,
+// calculateOrderSize now goes through balanceCache → getBalance. Mock the
+// cache wrapper directly so tests stay independent of Redis.
+vi.mock("../cache/balanceCache.js", () => ({
+  getCachedBalance: getBalanceMock,
 }));
 
 import { calculateOrderSize } from "./calculateOrderSize.js";

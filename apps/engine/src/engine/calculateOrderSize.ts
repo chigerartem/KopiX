@@ -13,8 +13,8 @@
  */
 
 import { CopyMode } from "@kopix/shared";
-import { getBalance } from "@kopix/exchange";
 import type { Credentials } from "@kopix/exchange";
+import { getCachedBalance } from "../cache/balanceCache.js";
 import { logger } from "../logger.js";
 
 /** Approximate USDT value of one contract per symbol.
@@ -53,9 +53,9 @@ export async function calculateOrderSize(
       return { skip: true, reason: "percentage_not_set" };
     }
 
-    let balance: Awaited<ReturnType<typeof getBalance>>;
+    let balance: Awaited<ReturnType<typeof getCachedBalance>>;
     try {
-      balance = await getBalance(credentials);
+      balance = await getCachedBalance(config.subscriberId, credentials);
     } catch (err: unknown) {
       logger.warn(
         { event: "size_calc.balance_fetch_failed", subscriberId: config.subscriberId, err },

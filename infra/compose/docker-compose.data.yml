@@ -45,6 +45,46 @@ services:
       timeout: 3s
       retries: 10
 
+  # PgBouncer — connection pooler in transaction mode.
+  #
+  # Apps connect to 127.0.0.1:6432 (PgBouncer) instead of 5432 (Postgres
+  # directly). Postgres can comfortably handle ~100 concurrent connections;
+  # at 5000 active subscribers, the engine alone (parallel queries during
+  # signal processing) plus the api (one per request) would exhaust that
+  # quickly. PgBouncer multiplexes ~thousands of client connections onto
+  # ~25 server connections.
+  #
+  # IMPORTANT: when DATABASE_URL points at this pooler, append
+  # ?pgbouncer=true&connection_limit=1 so Prisma disables prepared
+  # statements (incompatible with transaction-mode pooling) and stops
+  # opening its own per-instance pool on top.
+  pgbouncer:
+    image: edoburu/pgbouncer:1.23.1
+    container_name: kopix-pgbouncer
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_NAME: kopix
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: 1000
+      DEFAULT_POOL_SIZE: 25
+      RESERVE_POOL_SIZE: 5
+      RESERVE_POOL_TIMEOUT: 3
+      AUTH_TYPE: scram-sha-256
+    ports:
+      - "127.0.0.1:6432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h localhost -p 5432 -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
 volumes:
   pgdata:
   redisdata:

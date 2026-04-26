@@ -1,4 +1,5 @@
 export { validateCredentials, getBalance, placeMarketOrder } from "./bingx.js";
+export { acquireToken, pruneIdleBuckets } from "./rateLimiter.js";
 export type {
   Credentials,
   ValidationResult,
