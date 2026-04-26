@@ -27,6 +27,7 @@ export async function validateCredentials(credentials: Credentials): Promise<Val
   let futuresBalance: number | undefined;
   let hasWithdrawPermission = false;
   let hasTradePermission = false;
+  let isHedgeMode: boolean | undefined;
 
   try {
     // Fetching balance tests auth and confirms futures account exists
@@ -36,6 +37,26 @@ export async function validateCredentials(credentials: Credentials): Promise<Val
     futuresBalance = typeof usdtFree === "number" ? usdtFree : parseFloat(String(usdtFree));
 
     hasTradePermission = true;
+
+    // ── Hedge mode check ────────────────────────────────────────────────
+    // The engine treats every position as either LONG or SHORT and tracks
+    // them independently. In one-way mode BingX maintains a single net
+    // position per symbol — copy execution would silently corrupt it.
+    // Reject one-way mode at connect time.
+    try {
+      const ex = exchange as unknown as {
+        fetchPositionMode?: () => Promise<{ hedged?: boolean; info?: unknown }>;
+      };
+      if (typeof ex.fetchPositionMode === "function") {
+        const mode = await ex.fetchPositionMode();
+        isHedgeMode = mode.hedged === true;
+      }
+    } catch {
+      // Ignore — leave isHedgeMode undefined; caller treats as "unknown".
+      // (We do NOT fail-closed here because we already validated auth above;
+      // the route layer decides whether unknown is acceptable.)
+      isHedgeMode = undefined;
+    }
 
     // Actively probe whether the API key has withdraw permission by calling
     // a withdraw-scoped endpoint with deliberately invalid parameters.
@@ -92,7 +113,8 @@ export async function validateCredentials(credentials: Credentials): Promise<Val
       valid: true,
       hasTradePermission,
       hasWithdrawPermission,
-      futuresBalance,
+      ...(isHedgeMode !== undefined && { isHedgeMode }),
+      ...(futuresBalance !== undefined && { futuresBalance }),
     };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);

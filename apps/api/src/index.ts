@@ -1,3 +1,4 @@
+import { validateEnv } from "@kopix/shared";
 import { buildServer } from "./server.js";
 import { logger } from "./logger.js";
 import { startExpiryJob } from "./jobs/expiry.js";
@@ -6,6 +7,7 @@ const PORT = parseInt(process.env["PORT"] ?? "3000", 10);
 const HOST = process.env["HOST"] ?? "0.0.0.0";
 
 async function main(): Promise<void> {
+  validateEnv("api");
   const app = await buildServer();
 
   await app.listen({ port: PORT, host: HOST });

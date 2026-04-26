@@ -57,6 +57,19 @@ export async function exchangeRoutes(app: FastifyInstance): Promise<void> {
         return;
       }
 
+      // The copy engine assumes hedge mode (separate LONG/SHORT positions per symbol).
+      // One-way mode would silently corrupt position tracking, so reject it explicitly.
+      // If isHedgeMode is undefined the probe failed — treat as unknown and reject too,
+      // because we cannot guarantee correctness.
+      if (validation.isHedgeMode !== true) {
+        await reply.status(422).send({
+          error:
+            "BingX account must be in Hedge Mode (separate LONG/SHORT positions). " +
+            "Open BingX → Futures → Settings → Position Mode → Hedge Mode, then reconnect.",
+        });
+        return;
+      }
+
       // Encrypt and store — plaintext key never persisted
       const encKey = process.env["APP_ENCRYPTION_KEY"];
       if (!encKey) {

@@ -37,32 +37,67 @@ function statusBadge(status: string): string {
   return `<span style="background:${color};color:#fff;padding:2px 8px;border-radius:4px;font-size:12px">${esc(status)}</span>`;
 }
 
+type AuthSource = "header" | "query";
+
+/**
+ * Admin authentication.
+ *
+ *   - Authorization: Bearer <token>  (preferred — never logged by Caddy/nginx access logs)
+ *   - ?token=<token>                 (browser-navigation fallback for the HTML page)
+ *
+ * The HTML GET endpoint accepts both so the operator can bookmark the URL.
+ * Mutating endpoints (POST /broadcast, PATCH /plans/:id) require the header
+ * so tokens never leak into proxy access logs or browser history.
+ */
 function checkAuth(
   request: FastifyRequest,
   reply: FastifyReply,
-): { ok: true; token: string } | { ok: false } {
+  opts: { allowQueryToken?: boolean } = {},
+): { ok: true; token: string; source: AuthSource } | { ok: false } {
   const secret = process.env["ADMIN_SECRET"];
   if (!secret) {
     void reply.status(503).send("ADMIN_SECRET is not configured on the server.");
     return { ok: false };
   }
-  const token = (request.query as Record<string, string>)["token"];
+
+  const authHeader = request.headers["authorization"];
+  let token: string | undefined;
+  let source: AuthSource | undefined;
+  if (typeof authHeader === "string" && authHeader.startsWith("Bearer ")) {
+    token = authHeader.slice(7).trim();
+    source = "header";
+  } else if (opts.allowQueryToken) {
+    token = (request.query as Record<string, string>)["token"];
+    source = "query";
+  }
+
   if (!token || token !== secret) {
     void reply
       .status(401)
       .header("Content-Type", "text/html; charset=utf-8")
-      .send("<h2>401 — Неверный токен</h2><p>Добавьте ?token=ADMIN_SECRET в URL.</p>");
+      .send(
+        opts.allowQueryToken
+          ? "<h2>401 — Неверный токен</h2><p>Добавьте ?token=ADMIN_SECRET в URL.</p>"
+          : "Unauthorized — provide Authorization: Bearer <ADMIN_SECRET>.",
+      );
     return { ok: false };
   }
-  return { ok: true, token };
+
+  return { ok: true, token, source: source! };
 }
 
 export async function adminRoutes(app: FastifyInstance): Promise<void> {
   // ─── GET /api/admin ─────────────────────────────────────────────────────────
   app.get("/api/admin", async (request, reply) => {
-    const auth = checkAuth(request, reply);
+    const auth = checkAuth(request, reply, { allowQueryToken: true });
     if (!auth.ok) return;
-    const { token } = auth;
+    const { token, source } = auth;
+    if (source === "query") {
+      request.log.warn(
+        { event: "admin.auth.query_token", ip: request.ip },
+        "Admin token passed via query string — prefer Authorization header",
+      );
+    }
 
     const subscribers = await prisma.subscriber.findMany({
       orderBy: { createdAt: "desc" },
@@ -648,9 +683,9 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
 
       try {
         var photo = document.getElementById('dm-photo').value.trim();
-        var resp = await fetch('/api/admin/broadcast?token=' + encodeURIComponent(TOK), {
+        var resp = await fetch('/api/admin/broadcast', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TOK },
           body: JSON.stringify({ message: msg, photoUrl: photo || undefined, telegramId: dmTgId })
         });
         var data = await resp.json();
@@ -698,9 +733,9 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
             hasBingx:  document.getElementById('bc-bingx').value
           }
         };
-        var resp = await fetch('/api/admin/broadcast?token=' + encodeURIComponent(TOK), {
+        var resp = await fetch('/api/admin/broadcast', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TOK },
           body: JSON.stringify(body)
         });
         var data = await resp.json();
@@ -728,9 +763,9 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       btn.disabled = true;
       btn.textContent = '…';
       try {
-        var resp = await fetch('/api/admin/plans/' + encodeURIComponent(id) + '?token=' + encodeURIComponent(TOK), {
+        var resp = await fetch('/api/admin/plans/' + encodeURIComponent(id), {
           method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TOK },
           body: JSON.stringify({ isActive: !currentlyActive })
         });
         var data = await resp.json();
@@ -793,9 +828,9 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       btn.textContent = 'Сохраняем…';
       res.textContent = '';
       try {
-        var resp = await fetch('/api/admin/plans/' + encodeURIComponent(editingPlanId) + '?token=' + encodeURIComponent(TOK), {
+        var resp = await fetch('/api/admin/plans/' + encodeURIComponent(editingPlanId), {
           method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TOK },
           body: JSON.stringify({ price: price })
         });
         var data = await resp.json();

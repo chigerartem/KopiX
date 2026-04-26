@@ -12,6 +12,7 @@
  *   4. On SIGTERM/SIGINT: graceful shutdown
  */
 
+import { validateEnv } from "@kopix/shared";
 import { startMasterWatcher } from "./watcher/masterWatcher.js";
 import { normalizeSignal } from "./normalizer/normalizeSignal.js";
 import { publishSignal } from "./redis/streamPublisher.js";
@@ -21,6 +22,7 @@ import { startMetricsServer, signalsPublishedTotal } from "./metrics.js";
 import { logger } from "./logger.js";
 
 async function main(): Promise<void> {
+  validateEnv("engine");
   logger.info({ event: "engine.starting" }, "Trade engine starting");
 
   const metricsPort = Number(process.env["METRICS_PORT"] ?? 9090);
@@ -29,14 +31,9 @@ async function main(): Promise<void> {
   // Master credentials come directly from env — no DB lookup, no encryption layer.
   // Subscriber credentials are encrypted in the DB because they are dynamic and
   // user-supplied; the master account is a single static operator secret.
-  const masterApiKey = process.env["MASTER_API_KEY"];
-  const masterSecret = process.env["MASTER_API_SECRET"];
-
-  if (!masterApiKey || !masterSecret) {
-    throw new Error(
-      "MASTER_API_KEY and MASTER_API_SECRET env vars are required",
-    );
-  }
+  // Presence + min-length already enforced by validateEnv() above.
+  const masterApiKey = process.env["MASTER_API_KEY"]!;
+  const masterSecret = process.env["MASTER_API_SECRET"]!;
 
   // Start signal consumer (processes signals from Redis stream)
   const stopConsumer = await startSignalConsumer(async (signal) => {

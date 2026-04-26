@@ -47,7 +47,14 @@ export async function webhookRoutes(app: FastifyInstance): Promise<void> {
     return stream;
   });
 
-  app.post("/api/webhooks/cryptobot", async (request: FastifyRequest, reply) => {
+  app.post(
+    "/api/webhooks/cryptobot",
+    {
+      // Per-IP rate limit. CryptoBot retries paid invoices at most a handful
+      // of times; 120/min leaves comfortable headroom while blocking floods.
+      config: { rateLimit: { max: 120, timeWindow: 60_000 } },
+    },
+    async (request: FastifyRequest, reply) => {
     const signature = request.headers["x-crypto-pay-api-signature"];
     if (typeof signature !== "string" || !signature) {
       await reply.status(400).send({ error: "Missing signature" });
@@ -109,6 +116,44 @@ export async function webhookRoutes(app: FastifyInstance): Promise<void> {
       return;
     }
 
+    // ── CRITICAL: validate amount and currency match the plan ─────────────
+    // Without this check, a forged or replayed webhook could activate a
+    // subscription for $0.01 when the plan costs $10.
+    const paidAmount = Number(webhook.payload.amount);
+    const planPrice = Number(plan.price);
+    if (!Number.isFinite(paidAmount) || paidAmount + 1e-8 < planPrice) {
+      request.log.error(
+        {
+          event: "webhook.cryptobot.amount_mismatch",
+          invoiceId,
+          subscriberId,
+          planId,
+          paidAmount,
+          planPrice,
+          asset: webhook.payload.asset,
+        },
+        "Webhook amount is below plan price — refusing to activate",
+      );
+      // Return 200 so CryptoBot stops retrying. Operator must investigate via logs.
+      await reply.status(200).send({ ok: true });
+      return;
+    }
+    if (webhook.payload.asset !== plan.currency) {
+      request.log.error(
+        {
+          event: "webhook.cryptobot.currency_mismatch",
+          invoiceId,
+          subscriberId,
+          planId,
+          paidCurrency: webhook.payload.asset,
+          planCurrency: plan.currency,
+        },
+        "Webhook currency does not match plan currency",
+      );
+      await reply.status(200).send({ ok: true });
+      return;
+    }
+
     const now = new Date();
     const expiresAt = new Date(now.getTime() + plan.durationDays * 24 * 60 * 60 * 1000);
 
@@ -142,7 +187,8 @@ export async function webhookRoutes(app: FastifyInstance): Promise<void> {
     });
 
     await reply.status(200).send({ ok: true });
-  });
+  },
+  );
 }
 
 /**

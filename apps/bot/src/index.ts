@@ -11,6 +11,7 @@
  *   BOT_HOST              — optional, default 0.0.0.0
  */
 
+import { validateEnv } from "@kopix/shared";
 import { createBot } from "./bot.js";
 import { buildServer } from "./server.js";
 import { logger } from "./logger.js";
@@ -18,11 +19,10 @@ import { startExpiryNotifications } from "./notifications/expiry.js";
 import { startTradeNotifier } from "./services/tradeNotifier.js";
 
 async function main(): Promise<void> {
-  const token = process.env["TELEGRAM_BOT_TOKEN"];
-  const secret = process.env["BOT_WEBHOOK_SECRET"];
-
-  if (!token) throw new Error("TELEGRAM_BOT_TOKEN env var is required");
-  if (!secret) throw new Error("BOT_WEBHOOK_SECRET env var is required");
+  validateEnv("bot");
+  // Validated above — both vars are guaranteed non-empty here.
+  const token = process.env["TELEGRAM_BOT_TOKEN"]!;
+  const secret = process.env["BOT_WEBHOOK_SECRET"]!;
 
   const port = parseInt(process.env["BOT_PORT"] ?? "3001", 10);
   const host = process.env["BOT_HOST"] ?? "0.0.0.0";

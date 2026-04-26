@@ -8,6 +8,12 @@ export interface ValidationResult {
   error?: string;
   hasTradePermission: boolean;
   hasWithdrawPermission: boolean;
+  /**
+   * True if BingX account is in hedge mode (separate LONG/SHORT positions).
+   * The engine assumes hedge mode for all position tracking; one-way mode
+   * accounts must be rejected at connect time.
+   */
+  isHedgeMode?: boolean;
   futuresBalance?: number;
 }
 
