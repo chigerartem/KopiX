@@ -28,6 +28,7 @@ import {
   decreasePositionTx,
 } from "./positionTracker.js";
 import { getRedisClient } from "../redis/redisClient.js";
+import { shouldSkip as cbShouldSkip, onSuccess as cbOnSuccess, onFailure as cbOnFailure } from "./circuitBreaker.js";
 import { logger } from "../logger.js";
 import type { Subscriber } from "@kopix/db";
 import type { CopyMode } from "@kopix/shared";
@@ -104,6 +105,16 @@ export async function executeForSubscriber(
       return;
     }
     // pending / failed (no exchangeOrderId) → fall through and (re)try
+  }
+
+  // 1.5 Circuit breaker: if this subscriber has been failing repeatedly,
+  //     skip immediately so the bad key doesn't keep starving the
+  //     execution semaphore and BingX rate-limit tokens shared with
+  //     healthy subscribers.
+  if (cbShouldSkip(subscriber.id)) {
+    log.info({ event: "executor.circuit_open" }, "Circuit breaker open — skipping");
+    await recordSkipped(signal, subscriber.id, "circuit_open");
+    return;
   }
 
   // 2. Re-check subscription validity at execution time.
@@ -298,6 +309,7 @@ export async function executeForSubscriber(
         log.warn({ event: "executor.publish_failed", err: pubErr }, "Failed to publish trade event");
       }
 
+      cbOnSuccess(subscriber.id);
       return;
     } catch (err: unknown) {
       lastError = err;
@@ -340,6 +352,7 @@ export async function executeForSubscriber(
         } catch (pubErr: unknown) {
           log.warn({ event: "executor.notify_publish_failed", err: pubErr }, "Failed to publish key-revoked event");
         }
+        cbOnFailure(subscriber.id);
         log.warn({ event: "executor.key_revoked", err }, "Subscriber key revoked — credentials cleared");
         return;
       }
@@ -360,6 +373,7 @@ export async function executeForSubscriber(
       failureReason: lastError instanceof Error ? lastError.message : String(lastError),
     },
   });
+  cbOnFailure(subscriber.id);
   log.error({ event: "executor.failed", err: lastError }, "Order failed after all retries");
 }
 

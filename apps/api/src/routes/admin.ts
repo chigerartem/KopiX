@@ -8,6 +8,7 @@
 
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { createPrismaClient } from "@kopix/db";
+import { getRedisClient } from "../plugins/redis.js";
 
 const prisma = createPrismaClient();
 
@@ -1072,5 +1073,39 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       price: Number(updated.price),
       isActive: updated.isActive,
     });
+  });
+
+  // ─── POST /api/admin/kill-switch ────────────────────────────────────────
+  // Emergency stop / resume. Sets a Redis flag (engine:kill_switch=1) that
+  // the engine reads at the top of every processSignal. ACKs continue but
+  // no orders are placed. Use during incidents — pulls the brake without a
+  // restart. Body: { enabled: true | false }
+  app.post("/api/admin/kill-switch", async (request, reply) => {
+    const auth = checkAuth(request, reply);
+    if (!auth.ok) return;
+
+    const body = request.body as { enabled?: unknown };
+    if (typeof body.enabled !== "boolean") {
+      await reply.status(400).send({ error: "enabled must be boolean" });
+      return;
+    }
+
+    const redis = getRedisClient();
+    if (body.enabled) {
+      await redis.set("engine:kill_switch", "1");
+    } else {
+      await redis.del("engine:kill_switch");
+    }
+
+    await audit("engine.kill_switch", request, auth.token, { enabled: body.enabled });
+    await reply.send({ enabled: body.enabled });
+  });
+
+  // ─── GET /api/admin/kill-switch ─────────────────────────────────────────
+  app.get("/api/admin/kill-switch", async (request, reply) => {
+    const auth = checkAuth(request, reply, { allowQueryToken: true });
+    if (!auth.ok) return;
+    const enabled = (await getRedisClient().get("engine:kill_switch")) === "1";
+    await reply.send({ enabled });
   });
 }

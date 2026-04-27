@@ -10,6 +10,7 @@ import type { TradeSignal } from "@kopix/shared";
 import { SignalType } from "@kopix/shared";
 import { createPrismaClient, Prisma, type Subscriber } from "@kopix/db";
 import { executeForSubscriber } from "./subscriberExecutor.js";
+import { getRedisClient } from "../redis/redisClient.js";
 import { Semaphore } from "./semaphore.js";
 import { logger } from "../logger.js";
 import {
@@ -34,12 +35,32 @@ const prisma = createPrismaClient();
  * Process one signal across all active subscribers.
  * Called by the signal consumer for each stream entry.
  */
+const KILL_SWITCH_KEY = "engine:kill_switch";
+
 export async function processSignal(signal: TradeSignal): Promise<void> {
   const log = logger.child({
     signalId: signal.id,
     symbol: signal.symbol,
     correlationId: signal.correlationId,
   });
+
+  // Emergency kill-switch (settable via POST /api/admin/kill-switch).
+  // When set, the engine ACKs the signal as "no-op" and moves on so the
+  // stream can drain — but no orders are placed. Operator can use this
+  // during incidents (suspected master compromise, broken normalizer,
+  // exchange chaos) without restarting the engine.
+  try {
+    const killed = await getRedisClient().get(KILL_SWITCH_KEY);
+    if (killed === "1") {
+      log.warn({ event: "processor.killed" }, "Kill switch enabled — skipping signal");
+      signalsProcessedTotal.inc({ status: "killed" });
+      return;
+    }
+  } catch (err: unknown) {
+    // Redis flap should not stop trading — fail open.
+    log.warn({ event: "processor.killcheck_failed", err: String(err) }, "Kill-switch check failed — proceeding");
+  }
+
   log.info({ event: "processor.start", signalType: signal.signalType }, "Processing signal");
 
   // Persist signal record first

@@ -159,10 +159,10 @@ describe("positionTracker", () => {
       await decreasePositionTx(tx, decSig, "sub-1", 52000, 8);
       // pos-1 closed entirely (5 reduced), pos-2 reduced by 3, leaving 7
       const calls = txMethods.positionUpdate.mock.calls;
-      expect(calls[0][0].where.id).toBe("pos-1");
-      expect(calls[0][0].data.status).toBe("closed");
-      expect(calls[1][0].where.id).toBe("pos-2");
-      expect(calls[1][0].data.size).toBe(7);
+      expect(calls[0]?.[0]?.where?.id).toBe("pos-1");
+      expect(calls[0]?.[0]?.data?.status).toBe("closed");
+      expect(calls[1]?.[0]?.where?.id).toBe("pos-2");
+      expect(calls[1]?.[0]?.data?.size).toBe(7);
     });
 
     it("logs a warning when DECREASE size exceeds total open size", async () => {
